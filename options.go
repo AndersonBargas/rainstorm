@@ -1,21 +1,9 @@
 package rainstorm
 
 import (
-	"os"
-
-	"github.com/AndersonBargas/rainstorm/v5/codec"
-	"github.com/AndersonBargas/rainstorm/v5/index"
-	bolt "go.etcd.io/bbolt"
+	"github.com/AndersonBargas/rainstorm/v6/codec"
+	"github.com/AndersonBargas/rainstorm/v6/index"
 )
-
-// BoltOptions used to pass options to BoltDB.
-func BoltOptions(mode os.FileMode, options *bolt.Options) func(*Options) error {
-	return func(opts *Options) error {
-		opts.boltMode = mode
-		opts.boltOptions = options
-		return nil
-	}
-}
 
 // Codec used to set a custom encoder and decoder. The default is JSON.
 func Codec(c codec.MarshalUnmarshaler) func(*Options) error {
@@ -37,16 +25,6 @@ func Batch() func(*Options) error {
 func Root(root ...string) func(*Options) error {
 	return func(opts *Options) error {
 		opts.rootBucket = root
-		return nil
-	}
-}
-
-// UseDB allows Rainstorm to use an existing open Bolt.DB.
-// Warning: rainstorm.DB.Close() will close the bolt.DB instance.
-func UseDB(b *bolt.DB) func(*Options) error {
-	return func(opts *Options) error {
-		opts.path = b.Path()
-		opts.bolt = b
 		return nil
 	}
 }
@@ -77,21 +55,9 @@ type Options struct {
 	// Handles encoding and decoding of objects
 	codec codec.MarshalUnmarshaler
 
-	// Bolt file mode
-	boltMode os.FileMode
-
-	// Bolt options
-	boltOptions *bolt.Options
-
 	// Enable batch mode for read-write transaction, instead of update mode
 	batchMode bool
 
 	// The root bucket name
 	rootBucket []string
-
-	// Path of the database file
-	path string
-
-	// Bolt is still easily accessible
-	bolt *bolt.DB
 }

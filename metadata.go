@@ -3,14 +3,14 @@ package rainstorm
 import (
 	"reflect"
 
-	bolt "go.etcd.io/bbolt"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
 )
 
 const (
 	metaCodec = "codec"
 )
 
-func newMeta(b *bolt.Bucket, n Node) (*meta, error) {
+func newMeta(b bolt.Bucket, n Node) (*meta, error) {
 	m := b.Bucket([]byte(metadataBucket))
 	if m != nil {
 		name := m.Get([]byte(metaCodec))
@@ -37,7 +37,7 @@ func newMeta(b *bolt.Bucket, n Node) (*meta, error) {
 
 type meta struct {
 	node   Node
-	bucket *bolt.Bucket
+	bucket bolt.Bucket
 }
 
 func (m *meta) increment(field *fieldConfig) error {

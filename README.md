@@ -1,6 +1,6 @@
 # Rainstorm
 
-[![GoDoc](https://godoc.org/github.com/AndersonBargas/rainstorm?status.svg)](https://pkg.go.dev/github.com/AndersonBargas/rainstorm/v5?tab=doc) [![Go Report Card](https://goreportcard.com/badge/github.com/AndersonBargas/rainstorm)](https://goreportcard.com/report/github.com/AndersonBargas/rainstorm) ![GoLang](https://github.com/AndersonBargas/rainstorm/workflows/GoLang/badge.svg)
+[![GoDoc](https://godoc.org/github.com/AndersonBargas/rainstorm?status.svg)](https://pkg.go.dev/github.com/AndersonBargas/rainstorm/v6?tab=doc) [![Go Report Card](https://goreportcard.com/badge/github.com/AndersonBargas/rainstorm)](https://goreportcard.com/report/github.com/AndersonBargas/rainstorm) ![GoLang](https://github.com/AndersonBargas/rainstorm/workflows/GoLang/badge.svg)
 
 Rainstorm is a simple and powerful toolkit for [BoltDB](https://github.com/coreos/bbolt), forked from the great [Storm](https://github.com/asdine/storm).
 Basically, Rainstorm provides indexes, a wide range of methods to store and fetch data, an advanced query system, and much more.
@@ -49,7 +49,7 @@ In addition to the examples below, see also the [examples in the GoDoc](https://
 ## Getting Started
 
 ```bash
-GO111MODULE=on go get -u github.com/AndersonBargas/rainstorm/v5
+GO111MODULE=on go get -u github.com/AndersonBargas/rainstorm/v6
 ```
 
 ## Main differences from "storm"
@@ -65,7 +65,7 @@ To take advantage of the performance changes made after the fork, just use versi
 ## Import Rainstorm
 
 ```go
-import "github.com/AndersonBargas/rainstorm/v5"
+import "github.com/AndersonBargas/rainstorm/v6"
 ```
 
 ## Open a database
@@ -73,7 +73,15 @@ import "github.com/AndersonBargas/rainstorm/v5"
 Quick way of opening a database
 
 ```go
-db, err := rainstorm.Open("my.db")
+bDB, err := bolt.Open("my.db", 0600, nil)
+if err != nil {
+	return err
+}
+
+db, err := rainstorm.New(bDB)
+if err != nil {
+	return err
+}
 
 defer db.Close()
 ```
@@ -468,7 +476,13 @@ By default, Rainstorm opens a database with the mode `0600` and a timeout of one
 You can change this behavior by using `BoltOptions`
 
 ```go
-db, err := rainstorm.Open("my.db", rainstorm.BoltOptions(0600, &bolt.Options{Timeout: 1 * time.Second}))
+```go
+bDB, err := bolt.Open("my.db", 0600, &bolt.Options{Timeout: 1 * time.Second})
+if err != nil {
+	...
+}
+
+db, err := rainstorm.New(bDB)
 ```
 
 #### MarshalUnmarshaler
@@ -476,7 +490,7 @@ db, err := rainstorm.Open("my.db", rainstorm.BoltOptions(0600, &bolt.Options{Tim
 To store the data in BoltDB, Rainstorm marshals it in JSON by default. If you wish to change this behavior you can pass a codec that implements [`codec.MarshalUnmarshaler`](https://godoc.org/github.com/AndersonBargas/rainstorm/codec#MarshalUnmarshaler) via the [`rainstorm.Codec`](https://godoc.org/github.com/AndersonBargas/rainstorm#Codec) option:
 
 ```go
-db := rainstorm.Open("my.db", rainstorm.Codec(myCodec))
+db, err := rainstorm.New(bDB, rainstorm.Codec(myCodec))
 ```
 
 ##### Provided Codecs
@@ -487,19 +501,19 @@ These can be used by importing the relevant package and use that codec to config
 
 ```go
 import (
-  "github.com/AndersonBargas/rainstorm/v5"
-  "github.com/AndersonBargas/rainstorm/v5/codec/gob"
-  "github.com/AndersonBargas/rainstorm/v5/codec/json"
-  "github.com/AndersonBargas/rainstorm/v5/codec/sereal"
-  "github.com/AndersonBargas/rainstorm/v5/codec/protobuf"
-  "github.com/AndersonBargas/rainstorm/v5/codec/msgpack"
+  "github.com/AndersonBargas/rainstorm/v6"
+  "github.com/AndersonBargas/rainstorm/v6/codec/gob"
+  "github.com/AndersonBargas/rainstorm/v6/codec/json"
+  "github.com/AndersonBargas/rainstorm/v6/codec/sereal"
+  "github.com/AndersonBargas/rainstorm/v6/codec/protobuf"
+  "github.com/AndersonBargas/rainstorm/v6/codec/msgpack"
 )
 
-var gobDb, _ = rainstorm.Open("gob.db", rainstorm.Codec(gob.Codec))
-var jsonDb, _ = rainstorm.Open("json.db", rainstorm.Codec(json.Codec))
-var serealDb, _ = rainstorm.Open("sereal.db", rainstorm.Codec(sereal.Codec))
-var protobufDb, _ = rainstorm.Open("protobuf.db", rainstorm.Codec(protobuf.Codec))
-var msgpackDb, _ = rainstorm.Open("msgpack.db", rainstorm.Codec(msgpack.Codec))
+var gobDb, _ = rainstorm.New(gobBDB, rainstorm.Codec(gob.Codec))
+var jsonDb, _ = rainstorm.New(jsonBDB, rainstorm.Codec(json.Codec))
+var serealDb, _ = rainstorm.New(serealBDB, rainstorm.Codec(sereal.Codec))
+var protobufDb, _ = rainstorm.New(protobufBDB, rainstorm.Codec(protobuf.Codec))
+var msgpackDb, _ = rainstorm.New(msgpackBDB, rainstorm.Codec(msgpack.Codec))
 ```
 
 **Tip**: Adding Rainstorm tags to generated Protobuf files can be tricky. A good solution is to use [this tool](https://github.com/favadi/protoc-go-inject-tag) to inject the tags during the compilation.
@@ -510,7 +524,7 @@ You can use an existing connection and pass it to Rainstorm
 
 ```go
 bDB, _ := bolt.Open(filepath.Join(dir, "bolt.db"), 0600, &bolt.Options{Timeout: 10 * time.Second})
-db := rainstorm.Open("my.db", rainstorm.UseDB(bDB))
+db, err := rainstorm.New(bDB)
 ```
 
 #### Batch mode
@@ -518,7 +532,7 @@ db := rainstorm.Open("my.db", rainstorm.UseDB(bDB))
 Batch mode can be enabled to speed up concurrent writes (see [Batch read-write transactions](https://github.com/coreos/bbolt#batch-read-write-transactions))
 
 ```go
-db := rainstorm.Open("my.db", rainstorm.Batch())
+db, err := rainstorm.New(bDB, rainstorm.Batch())
 ```
 
 ## Nodes and nested buckets

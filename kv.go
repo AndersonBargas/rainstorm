@@ -3,7 +3,7 @@ package rainstorm
 import (
 	"reflect"
 
-	bolt "go.etcd.io/bbolt"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
 )
 
 // KeyValueStore can store and fetch values by key
@@ -30,7 +30,7 @@ func (n *node) GetBytes(bucketName string, key interface{}) ([]byte, error) {
 	}
 
 	var val []byte
-	return val, n.readTx(func(tx *bolt.Tx) error {
+	return val, n.readTx(func(tx bolt.Tx) error {
 		raw, err := n.getBytes(tx, bucketName, id)
 		if err != nil {
 			return err
@@ -43,7 +43,7 @@ func (n *node) GetBytes(bucketName string, key interface{}) ([]byte, error) {
 }
 
 // GetBytes gets a raw value from a bucket.
-func (n *node) getBytes(tx *bolt.Tx, bucketName string, id []byte) ([]byte, error) {
+func (n *node) getBytes(tx bolt.Tx, bucketName string, id []byte) ([]byte, error) {
 	bucket := n.GetBucket(tx, bucketName)
 	if bucket == nil {
 		return nil, ErrNotFound
@@ -68,12 +68,12 @@ func (n *node) SetBytes(bucketName string, key interface{}, value []byte) error 
 		return err
 	}
 
-	return n.readWriteTx(func(tx *bolt.Tx) error {
+	return n.readWriteTx(func(tx bolt.Tx) error {
 		return n.setBytes(tx, bucketName, id, value)
 	})
 }
 
-func (n *node) setBytes(tx *bolt.Tx, bucketName string, id, data []byte) error {
+func (n *node) setBytes(tx bolt.Tx, bucketName string, id, data []byte) error {
 	bucket, err := n.CreateBucketIfNotExists(tx, bucketName)
 	if err != nil {
 		return err
@@ -101,7 +101,7 @@ func (n *node) Get(bucketName string, key interface{}, to interface{}) error {
 		return err
 	}
 
-	return n.readTx(func(tx *bolt.Tx) error {
+	return n.readTx(func(tx bolt.Tx) error {
 		raw, err := n.getBytes(tx, bucketName, id)
 		if err != nil {
 			return err
@@ -132,12 +132,12 @@ func (n *node) Delete(bucketName string, key interface{}) error {
 		return err
 	}
 
-	return n.readWriteTx(func(tx *bolt.Tx) error {
+	return n.readWriteTx(func(tx bolt.Tx) error {
 		return n.delete(tx, bucketName, id)
 	})
 }
 
-func (n *node) delete(tx *bolt.Tx, bucketName string, id []byte) error {
+func (n *node) delete(tx bolt.Tx, bucketName string, id []byte) error {
 	bucket := n.GetBucket(tx, bucketName)
 	if bucket == nil {
 		return ErrNotFound
@@ -154,7 +154,7 @@ func (n *node) KeyExists(bucketName string, key interface{}) (bool, error) {
 	}
 
 	var exists bool
-	return exists, n.readTx(func(tx *bolt.Tx) error {
+	return exists, n.readTx(func(tx bolt.Tx) error {
 		bucket := n.GetBucket(tx, bucketName)
 		if bucket == nil {
 			return ErrNotFound

@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/internal/testadaptor"
 	"github.com/stretchr/testify/require"
-	bolt "go.etcd.io/bbolt"
 )
 
 func TestFind(t *testing.T) {
@@ -492,16 +493,18 @@ func TestOne(t *testing.T) {
 func TestOneNotWritable(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := New(bDB)
 
 	err := db.Save(&User{ID: 10, Name: "John"})
 	require.NoError(t, err)
 
 	db.Close()
 
-	db, _ = Open(filepath.Join(dir, "rainstorm.db"), BoltOptions(0660, &bolt.Options{
+	bDB, _ = testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0660, &bolt.Options{
 		ReadOnly: true,
-	}))
+	})
+	db, _ = New(bDB)
 	defer db.Close()
 
 	err = db.Save(&User{ID: 20, Name: "John"})

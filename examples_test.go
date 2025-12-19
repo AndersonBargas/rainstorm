@@ -8,9 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AndersonBargas/rainstorm/v5"
-	"github.com/AndersonBargas/rainstorm/v5/codec/gob"
-	bolt "go.etcd.io/bbolt"
+	"github.com/AndersonBargas/rainstorm/v6"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/codec/gob"
+	"github.com/AndersonBargas/rainstorm/v6/internal/testadaptor"
 )
 
 func ExampleDB_Save() {
@@ -27,7 +28,8 @@ func ExampleDB_Save() {
 	}
 
 	// Open takes an optional list of options as the last argument.
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"), rainstorm.Codec(gob.Codec))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB, rainstorm.Codec(gob.Codec))
 	defer db.Close()
 
 	user := User{
@@ -193,16 +195,18 @@ func ExampleSkip() {
 	// Found 2
 }
 
-func ExampleUseDB() {
+func ExampleNew() {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
 
-	bDB, err := bolt.Open(filepath.Join(dir, "bolt.db"), 0600, &bolt.Options{Timeout: 10 * time.Second})
+	// Open the BoltDB first
+	bDB, err := testadaptor.Open(filepath.Join(dir, "bolt.db"), 0600, &bolt.Options{Timeout: 10 * time.Second})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	db, _ := rainstorm.Open("", rainstorm.UseDB(bDB))
+	// Create Rainstorm with the existing BoltDB
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
 	err = db.Save(&User{ID: 10})
@@ -516,7 +520,8 @@ type Note struct {
 
 func prepareDB() (string, *rainstorm.DB) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 
 	for i, name := range []string{"John", "Eric", "Dilbert"} {
 		email := strings.ToLower(name + "@provider.com")

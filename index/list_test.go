@@ -7,20 +7,22 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/AndersonBargas/rainstorm/v5"
-	"github.com/AndersonBargas/rainstorm/v5/codec/gob"
-	"github.com/AndersonBargas/rainstorm/v5/index"
+	"github.com/AndersonBargas/rainstorm/v6"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/codec/gob"
+	"github.com/AndersonBargas/rainstorm/v6/index"
+	"github.com/AndersonBargas/rainstorm/v6/internal/testadaptor"
 	"github.com/stretchr/testify/require"
-	bolt "go.etcd.io/bbolt"
 )
 
 func TestListIndex(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
-	err := db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := db.Bolt.Update(func(tx bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -166,10 +168,11 @@ func TestListIndex(t *testing.T) {
 func TestListIndexReverse(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
-	err := db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := db.Bolt.Update(func(tx bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -211,10 +214,11 @@ func TestListIndexReverse(t *testing.T) {
 func TestListIndexAddRemoveID(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.Bolt.Update(func(tx bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -255,10 +259,11 @@ func TestListIndexAddRemoveID(t *testing.T) {
 func TestListIndexAllRecords(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.Bolt.Update(func(tx bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -334,10 +339,11 @@ func TestListIndexAllRecords(t *testing.T) {
 func TestListIndexRange(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.Bolt.Update(func(tx bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -430,10 +436,11 @@ func TestListIndexRange(t *testing.T) {
 func TestListIndexPrefix(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.Bolt.Update(func(tx bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -502,7 +509,7 @@ func TestListIndexPrefix(t *testing.T) {
 	})
 }
 
-func countItems(t *testing.T, bucket *bolt.Bucket) int {
+func countItems(t *testing.T, bucket bolt.Bucket) int {
 	c := bucket.Cursor()
 	count := 0
 	for k, id := c.First(); k != nil; k, id = c.Next() {

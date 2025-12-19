@@ -3,11 +3,10 @@ package rainstorm
 import (
 	"bytes"
 	"encoding/binary"
-	"time"
 
-	"github.com/AndersonBargas/rainstorm/v5/codec"
-	"github.com/AndersonBargas/rainstorm/v5/codec/json"
-	bolt "go.etcd.io/bbolt"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/codec"
+	"github.com/AndersonBargas/rainstorm/v6/codec/json"
 )
 
 const (
@@ -18,8 +17,8 @@ const (
 // Defaults to json
 var defaultCodec = json.Codec
 
-// Open opens a database at the given path with optional Rainstorm options.
-func Open(path string, rainstormOptions ...func(*Options) error) (*DB, error) {
+// New creates a new Rainstorm instance with the given BoltDB instance and optional Rainstorm options.
+func New(db bolt.DB, rainstormOptions ...func(*Options) error) (*DB, error) {
 	var err error
 
 	var opts Options
@@ -30,7 +29,7 @@ func Open(path string, rainstormOptions ...func(*Options) error) (*DB, error) {
 	}
 
 	s := DB{
-		Bolt: opts.bolt,
+		Bolt: db,
 	}
 
 	n := node{
@@ -44,23 +43,7 @@ func Open(path string, rainstormOptions ...func(*Options) error) (*DB, error) {
 		n.codec = defaultCodec
 	}
 
-	if opts.boltMode == 0 {
-		opts.boltMode = 0600
-	}
-
-	if opts.boltOptions == nil {
-		opts.boltOptions = &bolt.Options{Timeout: 1 * time.Second}
-	}
-
 	s.Node = &n
-
-	// skip if UseDB option is used
-	if s.Bolt == nil {
-		s.Bolt, err = bolt.Open(path, opts.boltMode, opts.boltOptions)
-		if err != nil {
-			return nil, err
-		}
-	}
 
 	err = s.checkVersion()
 	if err != nil {
@@ -77,7 +60,7 @@ type DB struct {
 	Node
 
 	// Bolt is still easily accessible
-	Bolt *bolt.DB
+	Bolt bolt.DB
 }
 
 // Close the database

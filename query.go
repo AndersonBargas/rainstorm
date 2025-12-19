@@ -1,9 +1,9 @@
 package rainstorm
 
 import (
-	"github.com/AndersonBargas/rainstorm/v5/internal"
-	"github.com/AndersonBargas/rainstorm/v5/q"
-	bolt "go.etcd.io/bbolt"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/internal"
+	"github.com/AndersonBargas/rainstorm/v6/q"
 )
 
 // Select a list of records that match a list of matchers. Doesn't use indexes.
@@ -172,16 +172,16 @@ func (q *query) runQuery(sink sink) error {
 		return q.query(q.node.tx, sink)
 	}
 	if sink.readOnly() {
-		return q.node.s.Bolt.View(func(tx *bolt.Tx) error {
+		return q.node.s.Bolt.View(func(tx bolt.Tx) error {
 			return q.query(tx, sink)
 		})
 	}
-	return q.node.s.Bolt.Update(func(tx *bolt.Tx) error {
+	return q.node.s.Bolt.Update(func(tx bolt.Tx) error {
 		return q.query(tx, sink)
 	})
 }
 
-func (q *query) query(tx *bolt.Tx, sink sink) error {
+func (q *query) query(tx bolt.Tx, sink sink) error {
 	bucketName := q.bucket
 	if bucketName == "" {
 		bucketName = sink.bucketName()

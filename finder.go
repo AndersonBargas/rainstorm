@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/AndersonBargas/rainstorm/v5/index"
-	"github.com/AndersonBargas/rainstorm/v5/q"
-	bolt "go.etcd.io/bbolt"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/index"
+	"github.com/AndersonBargas/rainstorm/v6/q"
 )
 
 // A Finder can fetch types from BoltDB.
@@ -67,7 +67,7 @@ func (n *node) One(fieldName string, value interface{}, to interface{}) error {
 		if n.tx != nil {
 			err = query.query(n.tx, sink)
 		} else {
-			err = n.s.Bolt.View(func(tx *bolt.Tx) error {
+			err = n.s.Bolt.View(func(tx bolt.Tx) error {
 				return query.query(tx, sink)
 			})
 		}
@@ -84,12 +84,12 @@ func (n *node) One(fieldName string, value interface{}, to interface{}) error {
 		return err
 	}
 
-	return n.readTx(func(tx *bolt.Tx) error {
+	return n.readTx(func(tx bolt.Tx) error {
 		return n.one(tx, bucketName, fieldName, cfg, to, val, field.IsID)
 	})
 }
 
-func (n *node) one(tx *bolt.Tx, bucketName, fieldName string, cfg *structConfig, to interface{}, val []byte, skipIndex bool) error {
+func (n *node) one(tx bolt.Tx, bucketName, fieldName string, cfg *structConfig, to interface{}, val []byte, skipIndex bool) error {
 	bucket := n.GetBucket(tx, bucketName)
 	if bucket == nil {
 		return ErrNotFound
@@ -153,7 +153,7 @@ func (n *node) Find(fieldName string, value interface{}, to interface{}, options
 			query.Reverse()
 		}
 
-		err = n.readTx(func(tx *bolt.Tx) error {
+		err = n.readTx(func(tx bolt.Tx) error {
 			return query.query(tx, sink)
 		})
 
@@ -169,12 +169,12 @@ func (n *node) Find(fieldName string, value interface{}, to interface{}, options
 		return err
 	}
 
-	return n.readTx(func(tx *bolt.Tx) error {
+	return n.readTx(func(tx bolt.Tx) error {
 		return n.find(tx, bucketName, fieldName, cfg, sink, val, opts)
 	})
 }
 
-func (n *node) find(tx *bolt.Tx, bucketName, fieldName string, cfg *structConfig, sink *listSink, val []byte, opts *index.Options) error {
+func (n *node) find(tx bolt.Tx, bucketName, fieldName string, cfg *structConfig, sink *listSink, val []byte, opts *index.Options) error {
 	bucket := n.GetBucket(tx, bucketName)
 	if bucket == nil {
 		return ErrNotFound
@@ -243,12 +243,12 @@ func (n *node) AllByIndex(fieldName string, to interface{}, options ...func(*ind
 		fn(opts)
 	}
 
-	return n.readTx(func(tx *bolt.Tx) error {
+	return n.readTx(func(tx bolt.Tx) error {
 		return n.allByIndex(tx, fieldName, cfg, &ref, opts)
 	})
 }
 
-func (n *node) allByIndex(tx *bolt.Tx, fieldName string, cfg *structConfig, ref *reflect.Value, opts *index.Options) error {
+func (n *node) allByIndex(tx bolt.Tx, fieldName string, cfg *structConfig, ref *reflect.Value, opts *index.Options) error {
 	bucket := n.GetBucket(tx, cfg.Name)
 	if bucket == nil {
 		return ErrNotFound
@@ -348,7 +348,7 @@ func (n *node) Range(fieldName string, min, max, to interface{}, options ...func
 			query.Reverse()
 		}
 
-		err = n.readTx(func(tx *bolt.Tx) error {
+		err = n.readTx(func(tx bolt.Tx) error {
 			return query.query(tx, sink)
 		})
 
@@ -369,12 +369,12 @@ func (n *node) Range(fieldName string, min, max, to interface{}, options ...func
 		return err
 	}
 
-	return n.readTx(func(tx *bolt.Tx) error {
+	return n.readTx(func(tx bolt.Tx) error {
 		return n.rnge(tx, bucketName, fieldName, cfg, sink, mn, mx, opts)
 	})
 }
 
-func (n *node) rnge(tx *bolt.Tx, bucketName, fieldName string, cfg *structConfig, sink *listSink, min, max []byte, opts *index.Options) error {
+func (n *node) rnge(tx bolt.Tx, bucketName, fieldName string, cfg *structConfig, sink *listSink, min, max []byte, opts *index.Options) error {
 	bucket := n.GetBucket(tx, bucketName)
 	if bucket == nil {
 		reflect.Indirect(sink.ref).SetLen(0)
@@ -439,7 +439,7 @@ func (n *node) Prefix(fieldName string, prefix string, to interface{}, options .
 			query.Reverse()
 		}
 
-		err = n.readTx(func(tx *bolt.Tx) error {
+		err = n.readTx(func(tx bolt.Tx) error {
 			return query.query(tx, sink)
 		})
 
@@ -455,12 +455,12 @@ func (n *node) Prefix(fieldName string, prefix string, to interface{}, options .
 		return err
 	}
 
-	return n.readTx(func(tx *bolt.Tx) error {
+	return n.readTx(func(tx bolt.Tx) error {
 		return n.prefix(tx, bucketName, fieldName, cfg, sink, prfx, opts)
 	})
 }
 
-func (n *node) prefix(tx *bolt.Tx, bucketName, fieldName string, cfg *structConfig, sink *listSink, prefix []byte, opts *index.Options) error {
+func (n *node) prefix(tx bolt.Tx, bucketName, fieldName string, cfg *structConfig, sink *listSink, prefix []byte, opts *index.Options) error {
 	bucket := n.GetBucket(tx, bucketName)
 	if bucket == nil {
 		reflect.Indirect(sink.ref).SetLen(0)

@@ -3,7 +3,7 @@ package rainstorm
 import (
 	"bytes"
 
-	bolt "go.etcd.io/bbolt"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
 )
 
 // A BucketScanner scans a Node for a list of buckets
@@ -22,7 +22,7 @@ func (n *node) PrefixScan(prefix string) []Node {
 
 	var nodes []Node
 
-	n.readTx(func(tx *bolt.Tx) error {
+	n.readTx(func(tx bolt.Tx) error {
 		nodes = n.prefixScan(tx, prefix)
 		return nil
 	})
@@ -30,7 +30,7 @@ func (n *node) PrefixScan(prefix string) []Node {
 	return nodes
 }
 
-func (n *node) prefixScan(tx *bolt.Tx, prefix string) []Node {
+func (n *node) prefixScan(tx bolt.Tx, prefix string) []Node {
 	var (
 		prefixBytes = []byte(prefix)
 		nodes       []Node
@@ -60,7 +60,7 @@ func (n *node) RangeScan(min, max string) []Node {
 
 	var nodes []Node
 
-	n.readTx(func(tx *bolt.Tx) error {
+	n.readTx(func(tx bolt.Tx) error {
 		nodes = n.rangeScan(tx, min, max)
 		return nil
 	})
@@ -68,7 +68,7 @@ func (n *node) RangeScan(min, max string) []Node {
 	return nodes
 }
 
-func (n *node) rangeScan(tx *bolt.Tx, min, max string) []Node {
+func (n *node) rangeScan(tx bolt.Tx, min, max string) []Node {
 	var (
 		minBytes = []byte(min)
 		maxBytes = []byte(max)
@@ -88,8 +88,8 @@ func (n *node) rangeScan(tx *bolt.Tx, min, max string) []Node {
 
 }
 
-func (n *node) cursor(tx *bolt.Tx) *bolt.Cursor {
-	var c *bolt.Cursor
+func (n *node) cursor(tx bolt.Tx) bolt.Cursor {
+	var c bolt.Cursor
 
 	if len(n.rootBucket) > 0 {
 		b := n.GetBucket(tx)

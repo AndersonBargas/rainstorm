@@ -3,12 +3,12 @@ package index
 import (
 	"bytes"
 
-	"github.com/AndersonBargas/rainstorm/v5/internal"
-	bolt "go.etcd.io/bbolt"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/internal"
 )
 
 // NewListIndex loads a ListIndex
-func NewListIndex(parent *bolt.Bucket, indexName []byte) (*ListIndex, error) {
+func NewListIndex(parent bolt.Bucket, indexName []byte) (*ListIndex, error) {
 	var err error
 	b := parent.Bucket(indexName)
 	if b == nil {
@@ -35,8 +35,8 @@ func NewListIndex(parent *bolt.Bucket, indexName []byte) (*ListIndex, error) {
 
 // ListIndex is an index that references values and the corresponding IDs.
 type ListIndex struct {
-	Parent      *bolt.Bucket
-	IndexBucket *bolt.Bucket
+	Parent      bolt.Bucket
+	IndexBucket bolt.Bucket
 	IDs         *UniqueIndex
 }
 

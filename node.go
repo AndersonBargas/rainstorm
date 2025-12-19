@@ -1,8 +1,8 @@
 package rainstorm
 
 import (
-	"github.com/AndersonBargas/rainstorm/v5/codec"
-	bolt "go.etcd.io/bbolt"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/codec"
 )
 
 // A Node in Rainstorm represents the API to a BoltDB bucket.
@@ -21,14 +21,14 @@ type Node interface {
 	Bucket() []string
 
 	// GetBucket returns the given bucket below the current node.
-	GetBucket(tx *bolt.Tx, children ...string) *bolt.Bucket
+	GetBucket(tx bolt.Tx, children ...string) bolt.Bucket
 
 	// CreateBucketIfNotExists creates the bucket below the current node if it doesn't
 	// already exist.
-	CreateBucketIfNotExists(tx *bolt.Tx, bucket string) (*bolt.Bucket, error)
+	CreateBucketIfNotExists(tx bolt.Tx, bucket string) (bolt.Bucket, error)
 
 	// WithTransaction returns a New Rainstorm node that will use the given transaction.
-	WithTransaction(tx *bolt.Tx) Node
+	WithTransaction(tx bolt.Tx) Node
 
 	// Begin starts a new transaction.
 	Begin(writable bool) (Node, error)
@@ -51,7 +51,7 @@ type node struct {
 	rootBucket []string
 
 	// Transaction object. Nil if not in transaction
-	tx *bolt.Tx
+	tx bolt.Tx
 
 	// Codec of this node
 	codec codec.MarshalUnmarshaler
@@ -68,7 +68,7 @@ func (n node) From(addend ...string) Node {
 }
 
 // WithTransaction returns a new Rainstorm Node that will use the given transaction.
-func (n node) WithTransaction(tx *bolt.Tx) Node {
+func (n node) WithTransaction(tx bolt.Tx) Node {
 	n.tx = tx
 	return &n
 }
@@ -98,29 +98,29 @@ func (n *node) Codec() codec.MarshalUnmarshaler {
 
 // Detects if already in transaction or runs a read write transaction.
 // Uses batch mode if enabled.
-func (n *node) readWriteTx(fn func(tx *bolt.Tx) error) error {
+func (n *node) readWriteTx(fn func(tx bolt.Tx) error) error {
 	if n.tx != nil {
 		return fn(n.tx)
 	}
 
 	if n.batchMode {
-		return n.s.Bolt.Batch(func(tx *bolt.Tx) error {
+		return n.s.Bolt.Batch(func(tx bolt.Tx) error {
 			return fn(tx)
 		})
 	}
 
-	return n.s.Bolt.Update(func(tx *bolt.Tx) error {
+	return n.s.Bolt.Update(func(tx bolt.Tx) error {
 		return fn(tx)
 	})
 }
 
 // Detects if already in transaction or runs a read transaction.
-func (n *node) readTx(fn func(tx *bolt.Tx) error) error {
+func (n *node) readTx(fn func(tx bolt.Tx) error) error {
 	if n.tx != nil {
 		return fn(n.tx)
 	}
 
-	return n.s.Bolt.View(func(tx *bolt.Tx) error {
+	return n.s.Bolt.View(func(tx bolt.Tx) error {
 		return fn(tx)
 	})
 }

@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AndersonBargas/rainstorm/v5/codec/gob"
-	"github.com/AndersonBargas/rainstorm/v5/codec/json"
+	bolt "github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/codec/gob"
+	"github.com/AndersonBargas/rainstorm/v6/codec/json"
 	"github.com/stretchr/testify/require"
-	bolt "go.etcd.io/bbolt"
 )
 
 func TestGet(t *testing.T) {
@@ -84,7 +84,7 @@ func TestSet(t *testing.T) {
 	err = db.Set("b1", nil, 100)
 	require.Error(t, err)
 
-	db.Bolt.View(func(tx *bolt.Tx) error {
+	db.Bolt.View(func(tx bolt.Tx) error {
 		b1 := tx.Bucket([]byte("b1"))
 		require.NotNil(t, b1)
 		b2 := tx.Bucket([]byte("b2"))

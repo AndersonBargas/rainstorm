@@ -1,11 +1,13 @@
 package rainstorm
 
-import bolt "go.etcd.io/bbolt"
+import (
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+)
 
 // CreateBucketIfNotExists creates the bucket below the current node if it doesn't
 // already exist.
-func (n *node) CreateBucketIfNotExists(tx *bolt.Tx, bucket string) (*bolt.Bucket, error) {
-	var b *bolt.Bucket
+func (n *node) CreateBucketIfNotExists(tx bolt.Tx, bucket string) (bolt.Bucket, error) {
+	var b bolt.Bucket
 	var err error
 
 	bucketNames := append(n.rootBucket, bucket)
@@ -27,8 +29,8 @@ func (n *node) CreateBucketIfNotExists(tx *bolt.Tx, bucket string) (*bolt.Bucket
 }
 
 // GetBucket returns the given bucket below the current node.
-func (n *node) GetBucket(tx *bolt.Tx, children ...string) *bolt.Bucket {
-	var b *bolt.Bucket
+func (n *node) GetBucket(tx bolt.Tx, children ...string) bolt.Bucket {
+	var b bolt.Bucket
 
 	bucketNames := append(n.rootBucket, children...)
 	for _, bucketName := range bucketNames {

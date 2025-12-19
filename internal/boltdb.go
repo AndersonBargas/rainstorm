@@ -3,12 +3,12 @@ package internal
 import (
 	"bytes"
 
-	bolt "go.etcd.io/bbolt"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
 )
 
 // Cursor that can be reversed
 type Cursor struct {
-	C       *bolt.Cursor
+	C       bolt.Cursor
 	Reverse bool
 }
 
@@ -32,7 +32,7 @@ func (c *Cursor) Next() ([]byte, []byte) {
 
 // RangeCursor that can be reversed
 type RangeCursor struct {
-	C         *bolt.Cursor
+	C         bolt.Cursor
 	Reverse   bool
 	Min       []byte
 	Max       []byte
@@ -77,7 +77,7 @@ func (c *RangeCursor) Continue(val []byte) bool {
 
 // PrefixCursor that can be reversed
 type PrefixCursor struct {
-	C       *bolt.Cursor
+	C       bolt.Cursor
 	Reverse bool
 	Prefix  []byte
 }

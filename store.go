@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"reflect"
 
-	"github.com/AndersonBargas/rainstorm/v5/index"
-	"github.com/AndersonBargas/rainstorm/v5/q"
-	bolt "go.etcd.io/bbolt"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/index"
+	"github.com/AndersonBargas/rainstorm/v6/q"
 )
 
 // TypeStore stores user defined types in BoltDB.
@@ -42,12 +42,12 @@ func (n *node) Init(data interface{}) error {
 		return err
 	}
 
-	return n.readWriteTx(func(tx *bolt.Tx) error {
+	return n.readWriteTx(func(tx bolt.Tx) error {
 		return n.init(tx, cfg)
 	})
 }
 
-func (n *node) init(tx *bolt.Tx, cfg *structConfig) error {
+func (n *node) init(tx bolt.Tx, cfg *structConfig) error {
 	bucket, err := n.CreateBucketIfNotExists(tx, cfg.Name)
 	if err != nil {
 		return err
@@ -94,12 +94,12 @@ func (n *node) ReIndex(data interface{}) error {
 		return err
 	}
 
-	return n.readWriteTx(func(tx *bolt.Tx) error {
+	return n.readWriteTx(func(tx bolt.Tx) error {
 		return n.reIndex(tx, data, cfg)
 	})
 }
 
-func (n *node) reIndex(tx *bolt.Tx, data interface{}, cfg *structConfig) error {
+func (n *node) reIndex(tx bolt.Tx, data interface{}, cfg *structConfig) error {
 	root := n.WithTransaction(tx)
 	nodes := root.From(cfg.Name).PrefixScan(indexPrefix)
 	bucket := root.GetBucket(tx, cfg.Name)
@@ -155,12 +155,12 @@ func (n *node) Save(data interface{}) error {
 		}
 	}
 
-	return n.readWriteTx(func(tx *bolt.Tx) error {
+	return n.readWriteTx(func(tx bolt.Tx) error {
 		return n.save(tx, cfg, data, false)
 	})
 }
 
-func (n *node) save(tx *bolt.Tx, cfg *structConfig, data interface{}, update bool) error {
+func (n *node) save(tx bolt.Tx, cfg *structConfig, data interface{}, update bool) error {
 	bucket, err := n.CreateBucketIfNotExists(tx, cfg.Name)
 	if err != nil {
 		return err
@@ -323,7 +323,7 @@ func (n *node) update(data interface{}, fn func(*reflect.Value, *reflect.Value, 
 
 	current := reflect.New(reflect.Indirect(ref).Type())
 
-	return n.readWriteTx(func(tx *bolt.Tx) error {
+	return n.readWriteTx(func(tx bolt.Tx) error {
 		err = n.WithTransaction(tx).One(cfg.ID.Name, cfg.ID.Value.Interface(), current.Interface())
 		if err != nil {
 			return err
@@ -356,12 +356,12 @@ func (n *node) Drop(data interface{}) error {
 		bucketName = v.Interface().(string)
 	}
 
-	return n.readWriteTx(func(tx *bolt.Tx) error {
+	return n.readWriteTx(func(tx bolt.Tx) error {
 		return n.drop(tx, bucketName)
 	})
 }
 
-func (n *node) drop(tx *bolt.Tx, bucketName string) error {
+func (n *node) drop(tx bolt.Tx, bucketName string) error {
 	bucket := n.GetBucket(tx)
 	if bucket == nil {
 		return tx.DeleteBucket([]byte(bucketName))
@@ -388,12 +388,12 @@ func (n *node) DeleteStruct(data interface{}) error {
 		return err
 	}
 
-	return n.readWriteTx(func(tx *bolt.Tx) error {
+	return n.readWriteTx(func(tx bolt.Tx) error {
 		return n.deleteStruct(tx, cfg, id)
 	})
 }
 
-func (n *node) deleteStruct(tx *bolt.Tx, cfg *structConfig, id []byte) error {
+func (n *node) deleteStruct(tx bolt.Tx, cfg *structConfig, id []byte) error {
 	bucket := n.GetBucket(tx, cfg.Name)
 	if bucket == nil {
 		return ErrNotFound

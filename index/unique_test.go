@@ -6,20 +6,22 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/AndersonBargas/rainstorm/v5"
-	"github.com/AndersonBargas/rainstorm/v5/codec/gob"
-	"github.com/AndersonBargas/rainstorm/v5/index"
+	"github.com/AndersonBargas/rainstorm/v6"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/codec/gob"
+	"github.com/AndersonBargas/rainstorm/v6/index"
+	"github.com/AndersonBargas/rainstorm/v6/internal/testadaptor"
 	"github.com/stretchr/testify/require"
-	bolt "go.etcd.io/bbolt"
 )
 
 func TestUniqueIndex(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
-	err := db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := db.Bolt.Update(func(tx bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -121,10 +123,11 @@ func TestUniqueIndex(t *testing.T) {
 func TestUniqueIndexRange(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.Bolt.Update(func(tx bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -193,10 +196,11 @@ func TestUniqueIndexRange(t *testing.T) {
 func TestUniqueIndexPrefix(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.Bolt.Update(func(tx bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 

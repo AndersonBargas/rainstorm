@@ -3,12 +3,12 @@ package index
 import (
 	"bytes"
 
-	"github.com/AndersonBargas/rainstorm/v5/internal"
-	bolt "go.etcd.io/bbolt"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/internal"
 )
 
 // NewIDIndex loads a IDIndex
-func NewIDIndex(parent *bolt.Bucket, indexName []byte) (*IDIndex, error) {
+func NewIDIndex(parent bolt.Bucket, indexName []byte) (*IDIndex, error) {
 	return &IDIndex{
 		IndexBucket: parent,
 	}, nil
@@ -16,7 +16,7 @@ func NewIDIndex(parent *bolt.Bucket, indexName []byte) (*IDIndex, error) {
 
 // IDIndex is an index that references unique values and the corresponding ID.
 type IDIndex struct {
-	IndexBucket *bolt.Bucket
+	IndexBucket bolt.Bucket
 }
 
 // Add a value to the unique index

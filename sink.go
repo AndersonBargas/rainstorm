@@ -5,14 +5,14 @@ import (
 	"sort"
 	"time"
 
-	"github.com/AndersonBargas/rainstorm/v5/index"
-	"github.com/AndersonBargas/rainstorm/v5/q"
-	bolt "go.etcd.io/bbolt"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/index"
+	"github.com/AndersonBargas/rainstorm/v6/q"
 )
 
 type item struct {
 	value  *reflect.Value
-	bucket *bolt.Bucket
+	bucket bolt.Bucket
 	k      []byte
 	v      []byte
 }
@@ -41,7 +41,7 @@ type sorter struct {
 	done    chan struct{}
 }
 
-func (s *sorter) filter(tree q.Matcher, bucket *bolt.Bucket, k, v []byte) (bool, error) {
+func (s *sorter) filter(tree q.Matcher, bucket bolt.Bucket, k, v []byte) (bool, error) {
 	itm := &item{
 		bucket: bucket,
 		k:      k,

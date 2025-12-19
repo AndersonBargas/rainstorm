@@ -5,11 +5,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/AndersonBargas/rainstorm/v5"
-	"github.com/AndersonBargas/rainstorm/v5/index"
-	"github.com/AndersonBargas/rainstorm/v5/q"
+	"github.com/AndersonBargas/rainstorm/v6"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/index"
+	"github.com/AndersonBargas/rainstorm/v6/internal/testadaptor"
+	"github.com/AndersonBargas/rainstorm/v6/q"
 	"github.com/stretchr/testify/require"
-	bolt "go.etcd.io/bbolt"
 )
 
 // SimpleLogin represents a simple login model
@@ -27,7 +28,8 @@ type SimpleProduct struct {
 func TestIDIndex(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
 	err := db.Init(&SimpleLogin{})
@@ -63,7 +65,8 @@ func TestIDIndex(t *testing.T) {
 func TestIDIndexPrefix(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
 	err := db.Init(&SimpleLogin{})
@@ -113,7 +116,8 @@ func TestIDIndexPrefix(t *testing.T) {
 func TestIDIndexRange(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
 	err := db.Init(&SimpleProduct{})
@@ -160,10 +164,11 @@ func TestIDIndexRange(t *testing.T) {
 func TestIDIndexParams(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
-	err := db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := db.Bolt.Update(func(tx bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -199,10 +204,11 @@ func TestIDIndexParams(t *testing.T) {
 /*func TestIDIndex(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
-	err := db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := db.Bolt.Update(func(tx bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -304,10 +310,11 @@ func TestIDIndexParams(t *testing.T) {
 func TestIDIndexRange(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.Bolt.Update(func(tx bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -376,10 +383,11 @@ func TestIDIndexRange(t *testing.T) {
 func TestIDIndexPrefix(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.Bolt.Update(func(tx bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 

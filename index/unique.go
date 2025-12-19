@@ -3,12 +3,12 @@ package index
 import (
 	"bytes"
 
-	"github.com/AndersonBargas/rainstorm/v5/internal"
-	bolt "go.etcd.io/bbolt"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/internal"
 )
 
 // NewUniqueIndex loads a UniqueIndex
-func NewUniqueIndex(parent *bolt.Bucket, indexName []byte) (*UniqueIndex, error) {
+func NewUniqueIndex(parent bolt.Bucket, indexName []byte) (*UniqueIndex, error) {
 	var err error
 	b := parent.Bucket(indexName)
 	if b == nil {
@@ -29,8 +29,8 @@ func NewUniqueIndex(parent *bolt.Bucket, indexName []byte) (*UniqueIndex, error)
 
 // UniqueIndex is an index that references unique values and the corresponding ID.
 type UniqueIndex struct {
-	Parent      *bolt.Bucket
-	IndexBucket *bolt.Bucket
+	Parent      bolt.Bucket
+	IndexBucket bolt.Bucket
 }
 
 // Add a value to the unique index

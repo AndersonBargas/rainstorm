@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/AndersonBargas/rainstorm/v5/index"
-	bolt "go.etcd.io/bbolt"
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/index"
 )
 
 // Rainstorm tags
@@ -198,7 +198,7 @@ func extractSingleField(ref *reflect.Value, fieldName string) (*structConfig, er
 	return &cfg, nil
 }
 
-func getIndex(bucket *bolt.Bucket, idxKind string, fieldName string) (index.Index, error) {
+func getIndex(bucket bolt.Bucket, idxKind string, fieldName string) (index.Index, error) {
 	var idx index.Index
 	var err error
 

@@ -3,10 +3,10 @@ package rainstorm
 import (
 	"testing"
 
-	"github.com/AndersonBargas/rainstorm/v5/codec/gob"
-	"github.com/AndersonBargas/rainstorm/v5/codec/json"
+	bolt "github.com/AndersonBargas/rainstorm/v6/bolt"
+	"github.com/AndersonBargas/rainstorm/v6/codec/gob"
+	"github.com/AndersonBargas/rainstorm/v6/codec/json"
 	"github.com/stretchr/testify/require"
-	bolt "go.etcd.io/bbolt"
 )
 
 func TestNode(t *testing.T) {
@@ -31,7 +31,7 @@ func TestNodeWithTransaction(t *testing.T) {
 	defer cleanup()
 
 	var user User
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.Bolt.Update(func(tx bolt.Tx) error {
 		dbx := db.WithTransaction(tx)
 		err := dbx.Save(&User{ID: 10, Name: "John"})
 		require.NoError(t, err)

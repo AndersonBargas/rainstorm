@@ -1,6 +1,10 @@
 package rainstorm
 
-import bolt "go.etcd.io/bbolt"
+import (
+	"errors"
+
+	"github.com/AndersonBargas/rainstorm/v6/bolt"
+)
 
 // Tx is a transaction.
 type Tx interface {
@@ -33,6 +37,9 @@ func (n *node) Rollback() error {
 	if err == bolt.ErrTxClosed {
 		return ErrNotInTransaction
 	}
+	if errors.Is(err, bolt.ErrTxClosed) {
+		return ErrNotInTransaction
+	}
 
 	return err
 }
@@ -45,6 +52,9 @@ func (n *node) Commit() error {
 
 	err := n.tx.Commit()
 	if err == bolt.ErrTxClosed {
+		return ErrNotInTransaction
+	}
+	if errors.Is(err, bolt.ErrTxClosed) {
 		return ErrNotInTransaction
 	}
 
