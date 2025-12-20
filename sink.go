@@ -146,6 +146,9 @@ func (s *sorter) compareValue(left reflect.Value, right reflect.Value) int {
 		if lt, lok := left.Interface().(time.Time); lok {
 			if rt, rok := right.Interface().(time.Time); rok {
 				if lok && rok {
+					if lt.Equal(rt) {
+						return 0
+					}
 					if lt.Before(rt) {
 						return -1
 					}

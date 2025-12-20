@@ -18,3 +18,21 @@ func TestAES(t *testing.T) {
 
 	internal.RoundtripTester(t, aes)
 }
+
+func TestName(t *testing.T) {
+	c, err := NewAES(json.Codec, testKey)
+	require.NoError(t, err)
+	require.Equal(t, "aes-json", c.Name())
+}
+
+func TestAESErrors(t *testing.T) {
+	// Invalid key size
+	_, err := NewAES(json.Codec, []byte("short"))
+	require.Error(t, err)
+
+	c, _ := NewAES(json.Codec, testKey)
+
+	// Unmarshal invalid data (too short)
+	err = c.Unmarshal([]byte("short"), nil)
+	require.Error(t, err)
+}

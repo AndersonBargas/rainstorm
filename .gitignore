@@ -30,3 +30,7 @@ _testmain.go
 
 # Golang vendor folder
 /vendor/
+
+# Test coverage
+coverage.out
+coverage.html
