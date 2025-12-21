@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AndersonBargas/rainstorm/v6/bbolt"
 	"github.com/AndersonBargas/rainstorm/v6/bolt"
-	"github.com/AndersonBargas/rainstorm/v6/internal/testadaptor"
 	"github.com/stretchr/testify/require"
 )
 
@@ -493,7 +493,7 @@ func TestOne(t *testing.T) {
 func TestOneNotWritable(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
 	db, _ := New(bDB)
 
 	err := db.Save(&User{ID: 10, Name: "John"})
@@ -501,7 +501,7 @@ func TestOneNotWritable(t *testing.T) {
 
 	db.Close()
 
-	bDB, _ = testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0660, &bolt.Options{
+	bDB, _ = bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0660, &bolt.Options{
 		ReadOnly: true,
 	})
 	db, _ = New(bDB)

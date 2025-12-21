@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/AndersonBargas/rainstorm/v6"
+	"github.com/AndersonBargas/rainstorm/v6/bbolt"
 	"github.com/AndersonBargas/rainstorm/v6/codec/internal"
-	"github.com/AndersonBargas/rainstorm/v6/internal/testadaptor"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,7 +21,7 @@ func TestProtobuf(t *testing.T) {
 func TestSave(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
 	db, _ := rainstorm.New(bDB, rainstorm.Codec(Codec))
 	u1 := SimpleUser{ID: 1, Name: "John"}
 	err := db.Save(&u1)
@@ -35,7 +35,7 @@ func TestSave(t *testing.T) {
 func TestGetSet(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
 	db, _ := rainstorm.New(bDB, rainstorm.Codec(Codec))
 	err := db.Set("bucket", "key", "value")
 	require.NoError(t, err)

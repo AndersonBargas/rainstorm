@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AndersonBargas/rainstorm/v6/bbolt"
 	"github.com/AndersonBargas/rainstorm/v6/bolt"
 	"github.com/AndersonBargas/rainstorm/v6/codec/json"
-	"github.com/AndersonBargas/rainstorm/v6/internal/testadaptor"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +26,7 @@ func TestNewStorm(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	file := filepath.Join(dir, "rainstorm.db")
-	bDB, err := testadaptor.Open(file, 0600, nil)
+	bDB, err := bbolt.Open(file, 0600, nil)
 	require.NoError(t, err)
 	defer bDB.Close()
 
@@ -49,7 +49,7 @@ func TestNewRainstormWithRainstormOptions(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	dc := new(dummyCodec)
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm1.db"), 0660, &bolt.Options{Timeout: 10 * time.Second})
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm1.db"), 0660, &bolt.Options{Timeout: 10 * time.Second})
 	db1, _ := New(bDB, Codec(dc), Root("a", "b"))
 	require.Equal(t, dc, db1.Codec())
 	require.Equal(t, []string{"a", "b"}, db1.Node.(*node).rootBucket)
@@ -57,7 +57,7 @@ func TestNewRainstormWithRainstormOptions(t *testing.T) {
 	err := db1.Save(&SimpleUser{ID: 1})
 	require.NoError(t, err)
 
-	bDB2, _ := testadaptor.Open(filepath.Join(dir, "rainstorm2.db"), 0600, nil)
+	bDB2, _ := bbolt.Open(filepath.Join(dir, "rainstorm2.db"), 0600, nil)
 	db2, _ := New(bDB2, Codec(dc))
 	require.Equal(t, dc, db2.Codec())
 }
@@ -66,7 +66,7 @@ func TestNewRainstormWithBatch(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
 
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm1.db"), 0600, nil)
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm1.db"), 0600, nil)
 	db1, _ := New(bDB, Batch())
 	defer db1.Close()
 
@@ -86,7 +86,7 @@ func TestNewRainstormWithBatch(t *testing.T) {
 func TestBoltDB(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	bDB, err := testadaptor.Open(filepath.Join(dir, "bolt.db"), 0600, &bolt.Options{Timeout: 10 * time.Second})
+	bDB, err := bbolt.Open(filepath.Join(dir, "bolt.db"), 0600, &bolt.Options{Timeout: 10 * time.Second})
 	require.NoError(t, err)
 	// no need to close bolt.DB Rainstorm will take care of it
 	sDB, err := New(bDB)
@@ -168,7 +168,7 @@ func createDB(t errorHandler, opts ...func(*Options) error) (*DB, func()) {
 	if err != nil {
 		t.Error(err)
 	}
-	bDB, err := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	bDB, err := bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
 	if err != nil {
 		t.Error(err)
 	}

@@ -8,17 +8,17 @@ import (
 	"testing"
 
 	"github.com/AndersonBargas/rainstorm/v6"
+	"github.com/AndersonBargas/rainstorm/v6/bbolt"
 	"github.com/AndersonBargas/rainstorm/v6/bolt"
 	"github.com/AndersonBargas/rainstorm/v6/codec/gob"
 	"github.com/AndersonBargas/rainstorm/v6/index"
-	"github.com/AndersonBargas/rainstorm/v6/internal/testadaptor"
 	"github.com/stretchr/testify/require"
 )
 
 func TestListIndex(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
 	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
@@ -168,7 +168,7 @@ func TestListIndex(t *testing.T) {
 func TestListIndexReverse(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
 	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
@@ -214,7 +214,7 @@ func TestListIndexReverse(t *testing.T) {
 func TestListIndexAddRemoveID(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
 	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
@@ -259,7 +259,7 @@ func TestListIndexAddRemoveID(t *testing.T) {
 func TestListIndexAllRecords(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
 	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
@@ -339,7 +339,7 @@ func TestListIndexAllRecords(t *testing.T) {
 func TestListIndexRange(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
 	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
@@ -436,7 +436,7 @@ func TestListIndexRange(t *testing.T) {
 func TestListIndexPrefix(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
 	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 

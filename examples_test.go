@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/AndersonBargas/rainstorm/v6"
+	"github.com/AndersonBargas/rainstorm/v6/bbolt"
 	"github.com/AndersonBargas/rainstorm/v6/bolt"
 	"github.com/AndersonBargas/rainstorm/v6/codec/gob"
-	"github.com/AndersonBargas/rainstorm/v6/internal/testadaptor"
 )
 
 func ExampleDB_Save() {
@@ -28,7 +28,7 @@ func ExampleDB_Save() {
 	}
 
 	// Open takes an optional list of options as the last argument.
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
 	db, _ := rainstorm.New(bDB, rainstorm.Codec(gob.Codec))
 	defer db.Close()
 
@@ -200,7 +200,7 @@ func ExampleNew() {
 	defer os.RemoveAll(dir)
 
 	// Open the BoltDB first
-	bDB, err := testadaptor.Open(filepath.Join(dir, "bolt.db"), 0600, &bolt.Options{Timeout: 10 * time.Second})
+	bDB, err := bbolt.Open(filepath.Join(dir, "bolt.db"), 0600, &bolt.Options{Timeout: 10 * time.Second})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -520,7 +520,7 @@ type Note struct {
 
 func prepareDB() (string, *rainstorm.DB) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
 	db, _ := rainstorm.New(bDB)
 
 	for i, name := range []string{"John", "Eric", "Dilbert"} {

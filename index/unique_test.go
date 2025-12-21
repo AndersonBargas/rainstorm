@@ -7,17 +7,17 @@ import (
 	"testing"
 
 	"github.com/AndersonBargas/rainstorm/v6"
+	"github.com/AndersonBargas/rainstorm/v6/bbolt"
 	"github.com/AndersonBargas/rainstorm/v6/bolt"
 	"github.com/AndersonBargas/rainstorm/v6/codec/gob"
 	"github.com/AndersonBargas/rainstorm/v6/index"
-	"github.com/AndersonBargas/rainstorm/v6/internal/testadaptor"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUniqueIndex(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
 	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
@@ -123,7 +123,7 @@ func TestUniqueIndex(t *testing.T) {
 func TestUniqueIndexRange(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
 	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 
@@ -196,7 +196,7 @@ func TestUniqueIndexRange(t *testing.T) {
 func TestUniqueIndexPrefix(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
 	db, _ := rainstorm.New(bDB)
 	defer db.Close()
 

@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/AndersonBargas/rainstorm/v6"
-	"github.com/AndersonBargas/rainstorm/v6/internal/testadaptor"
+	"github.com/AndersonBargas/rainstorm/v6/bbolt"
 	"github.com/AndersonBargas/rainstorm/v6/q"
 )
 
@@ -47,7 +47,7 @@ type User struct {
 
 func prepareDB() (string, *rainstorm.DB) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
-	bDB, _ := testadaptor.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
+	bDB, _ := bbolt.Open(filepath.Join(dir, "rainstorm.db"), 0600, nil)
 	db, _ := rainstorm.New(bDB)
 
 	for i, name := range []string{"John", "Norm", "Donald", "Eric", "Dilbert"} {

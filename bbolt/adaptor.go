@@ -1,4 +1,4 @@
-package testadaptor
+package bbolt
 
 import (
 	"errors"
@@ -9,31 +9,9 @@ import (
 	bbolt "go.etcd.io/bbolt"
 )
 
-// Open opens a database at the given path.
-func Open(path string, mode os.FileMode, options *bolt.Options) (bolt.DB, error) {
-	var opts *bbolt.Options
-
-	if options != nil {
-		opts = &bbolt.Options{
-			Timeout:         options.Timeout,
-			NoGrowSync:      options.NoGrowSync,
-			ReadOnly:        options.ReadOnly,
-			MmapFlags:       options.MmapFlags,
-			InitialMmapSize: options.InitialMmapSize,
-			PageSize:        options.PageSize,
-			NoSync:          options.NoSync,
-			OpenFile:        options.OpenFile,
-		}
-	} else {
-		opts = &bbolt.Options{Timeout: 1 * time.Second}
-	}
-
-	db, err := bbolt.Open(path, mode, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Adaptor{db}, nil
+// New creates a new adaptor for the given bbolt.DB instance.
+func New(db *bbolt.DB) *Adaptor {
+	return &Adaptor{DB: db}
 }
 
 // Adaptor is a wrapper around bbolt.DB that satisfies the DB interface.
@@ -201,4 +179,31 @@ type CursorWrapper struct {
 // Bucket returns the bucket that this cursor was created from.
 func (c *CursorWrapper) Bucket() bolt.Bucket {
 	return &BucketWrapper{B: c.Cursor.Bucket()}
+}
+
+// Open opens a database at the given path.
+func Open(path string, mode os.FileMode, options *bolt.Options) (*Adaptor, error) {
+	var opts *bbolt.Options
+
+	if options != nil {
+		opts = &bbolt.Options{
+			Timeout:         options.Timeout,
+			NoGrowSync:      options.NoGrowSync,
+			ReadOnly:        options.ReadOnly,
+			MmapFlags:       options.MmapFlags,
+			InitialMmapSize: options.InitialMmapSize,
+			PageSize:        options.PageSize,
+			NoSync:          options.NoSync,
+			OpenFile:        options.OpenFile,
+		}
+	} else {
+		opts = &bbolt.Options{Timeout: 1 * time.Second}
+	}
+
+	db, err := bbolt.Open(path, mode, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Adaptor{db}, nil
 }
