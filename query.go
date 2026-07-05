@@ -186,6 +186,10 @@ func (q *query) query(tx *bolt.Tx, sink sink) error {
 	if bucketName == "" {
 		bucketName = sink.bucketName()
 	}
+	// If still empty, try rootBucket fallback (keep as empty for root-bucket-as-data pattern)
+	if bucketName == "" && len(q.node.rootBucket) == 0 {
+		return ErrNoName
+	}
 	bucket := q.node.GetBucket(tx, bucketName)
 
 	if q.limit == 0 {

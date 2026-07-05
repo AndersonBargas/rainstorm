@@ -37,6 +37,26 @@ type Finder interface {
 	Count(data interface{}) (int, error)
 }
 
+// resolveBucketName returns the bucket name, falling back to the
+// innermost rootBucket if the sink has no name (anonymous type).
+func (n *node) resolveBucketName(sink sink) string {
+	name := sink.bucketName()
+	if name == "" && len(n.rootBucket) > 0 {
+		// Return empty to signal that the root bucket itself is the data bucket.
+		// GetBucket/CreateBucketIfNotExists will use only the rootBucket path.
+		return ""
+	}
+	return name
+}
+
+// hasBucketName returns true if a usable bucket name can be determined.
+func (n *node) hasBucketName(sink sink) bool {
+	if sink.bucketName() != "" {
+		return true
+	}
+	return len(n.rootBucket) > 0
+}
+
 // One returns one record by the specified index
 func (n *node) One(fieldName string, value interface{}, to interface{}) error {
 	sink, err := newFirstSink(n, to)
@@ -44,10 +64,11 @@ func (n *node) One(fieldName string, value interface{}, to interface{}) error {
 		return err
 	}
 
-	bucketName := sink.bucketName()
-	if bucketName == "" {
+	if !n.hasBucketName(sink) {
 		return ErrNoName
 	}
+
+	bucketName := n.resolveBucketName(sink)
 
 	if fieldName == "" {
 		return ErrNotFound
@@ -128,10 +149,10 @@ func (n *node) Find(fieldName string, value interface{}, to interface{}, options
 	if err != nil {
 		return err
 	}
-	bucketName := sink.bucketName()
-	if bucketName == "" {
+	if !n.hasBucketName(sink) {
 		return ErrNoName
 	}
+	bucketName := n.resolveBucketName(sink)
 
 	ref := reflect.Indirect(reflect.New(sink.elemType))
 	cfg, err := extractSingleField(&ref, fieldName)
@@ -323,10 +344,11 @@ func (n *node) Range(fieldName string, min, max, to interface{}, options ...func
 		return err
 	}
 
-	bucketName := sink.bucketName()
-	if bucketName == "" {
+	if !n.hasBucketName(sink) {
 		return ErrNoName
 	}
+
+	bucketName := n.resolveBucketName(sink)
 
 	ref := reflect.Indirect(reflect.New(sink.elemType))
 	cfg, err := extractSingleField(&ref, fieldName)
@@ -414,10 +436,11 @@ func (n *node) Prefix(fieldName string, prefix string, to interface{}, options .
 		return err
 	}
 
-	bucketName := sink.bucketName()
-	if bucketName == "" {
+	if !n.hasBucketName(sink) {
 		return ErrNoName
 	}
+
+	bucketName := n.resolveBucketName(sink)
 
 	ref := reflect.Indirect(reflect.New(sink.elemType))
 	cfg, err := extractSingleField(&ref, fieldName)

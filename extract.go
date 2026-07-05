@@ -39,6 +39,30 @@ type structConfig struct {
 	ID     *fieldConfig
 }
 
+// bucketName resolves the bucket name for a data value.
+// If the value implements BucketNamer, that name is returned.
+// Otherwise the type's static name is used.
+func bucketName(data interface{}) string {
+	if bn, ok := data.(BucketNamer); ok {
+		return bn.RainstormBucketName()
+	}
+	return reflect.Indirect(reflect.ValueOf(data)).Type().Name()
+}
+
+// bucketNameFromValue resolves the bucket name from a reflect.Value.
+func bucketNameFromValue(v *reflect.Value) string {
+	if v.Kind() == reflect.Ptr {
+		e := v.Elem()
+		v = &e
+	}
+	if v.CanInterface() {
+		if bn, ok := v.Interface().(BucketNamer); ok {
+			return bn.RainstormBucketName()
+		}
+	}
+	return v.Type().Name()
+}
+
 func extract(s *reflect.Value, mi ...*structConfig) (*structConfig, error) {
 	if s.Kind() == reflect.Ptr {
 		e := s.Elem()
@@ -62,7 +86,7 @@ func extract(s *reflect.Value, mi ...*structConfig) (*structConfig, error) {
 	}
 
 	if m.Name == "" {
-		m.Name = typ.Name()
+		m.Name = bucketNameFromValue(s)
 	}
 
 	numFields := s.NumField()
@@ -86,10 +110,6 @@ func extract(s *reflect.Value, mi ...*structConfig) (*structConfig, error) {
 
 	if m.ID == nil {
 		return nil, ErrNoID
-	}
-
-	if m.Name == "" {
-		return nil, ErrNoName
 	}
 
 	return m, nil

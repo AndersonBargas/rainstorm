@@ -8,9 +8,15 @@ func (n *node) CreateBucketIfNotExists(tx *bolt.Tx, bucket string) (*bolt.Bucket
 	var b *bolt.Bucket
 	var err error
 
-	bucketNames := append(n.rootBucket, bucket)
+	bucketNames := n.rootBucket
+	if bucket != "" {
+		bucketNames = append(bucketNames, bucket)
+	}
 
 	for _, bucketName := range bucketNames {
+		if bucketName == "" {
+			continue
+		}
 		if b != nil {
 			if b, err = b.CreateBucketIfNotExists([]byte(bucketName)); err != nil {
 				return nil, err
@@ -23,6 +29,11 @@ func (n *node) CreateBucketIfNotExists(tx *bolt.Tx, bucket string) (*bolt.Bucket
 		}
 	}
 
+	// If there were no valid bucket names at all, fall back to the tx root
+	if b == nil {
+		return nil, ErrNoName
+	}
+
 	return b, nil
 }
 
@@ -30,8 +41,16 @@ func (n *node) CreateBucketIfNotExists(tx *bolt.Tx, bucket string) (*bolt.Bucket
 func (n *node) GetBucket(tx *bolt.Tx, children ...string) *bolt.Bucket {
 	var b *bolt.Bucket
 
-	bucketNames := append(n.rootBucket, children...)
+	bucketNames := n.rootBucket
+	for _, child := range children {
+		if child != "" {
+			bucketNames = append(bucketNames, child)
+		}
+	}
 	for _, bucketName := range bucketNames {
+		if bucketName == "" {
+			continue
+		}
 		if b != nil {
 			if b = b.Bucket([]byte(bucketName)); b == nil {
 				return nil

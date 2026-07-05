@@ -322,8 +322,17 @@ func newListSink(node Node, to interface{}) (*listSink, error) {
 		elemType = elemType.Elem()
 	}
 
-	if elemType.Name() == "" {
-		return nil, ErrNoName
+	// Resolve bucket name: prefer BucketNamer on the element,
+	// fall back to static type name. Empty name is allowed for
+	// anonymous types when the caller provides the bucket later.
+	name := elemType.Name()
+	if name == "" {
+		proto := reflect.New(elemType)
+		if proto.Elem().CanInterface() {
+			if bn, ok := proto.Elem().Interface().(BucketNamer); ok {
+				name = bn.RainstormBucketName()
+			}
+		}
 	}
 
 	return &listSink{
@@ -331,7 +340,33 @@ func newListSink(node Node, to interface{}) (*listSink, error) {
 		ref:      ref,
 		isPtr:    sliceType.Elem().Kind() == reflect.Ptr,
 		elemType: elemType,
-		name:     elemType.Name(),
+		name:     name,
+		results:  reflect.MakeSlice(reflect.Indirect(ref).Type(), 0, 0),
+	}, nil
+}
+
+// newListSinkWithBucket creates a listSink with an explicit bucket name,
+// bypassing type-based name resolution. This is useful for dynamic types.
+func newListSinkWithBucket(node Node, to interface{}, bucketName string) (*listSink, error) {
+	ref := reflect.ValueOf(to)
+
+	if ref.Kind() != reflect.Ptr || reflect.Indirect(ref).Kind() != reflect.Slice {
+		return nil, ErrSlicePtrNeeded
+	}
+
+	sliceType := reflect.Indirect(ref).Type()
+	elemType := sliceType.Elem()
+
+	if elemType.Kind() == reflect.Ptr {
+		elemType = elemType.Elem()
+	}
+
+	return &listSink{
+		node:     node,
+		ref:      ref,
+		isPtr:    sliceType.Elem().Kind() == reflect.Ptr,
+		elemType: elemType,
+		name:     bucketName,
 		results:  reflect.MakeSlice(reflect.Indirect(ref).Type(), 0, 0),
 	}, nil
 }
@@ -420,7 +455,13 @@ func (f *firstSink) elem() reflect.Value {
 }
 
 func (f *firstSink) bucketName() string {
-	return reflect.Indirect(f.ref).Type().Name()
+	v := reflect.Indirect(f.ref)
+	if v.CanInterface() {
+		if bn, ok := v.Interface().(BucketNamer); ok {
+			return bn.RainstormBucketName()
+		}
+	}
+	return v.Type().Name()
 }
 
 func (f *firstSink) add(i *item) error {
@@ -465,7 +506,7 @@ func (d *deleteSink) elem() reflect.Value {
 }
 
 func (d *deleteSink) bucketName() string {
-	return reflect.Indirect(d.ref).Type().Name()
+	return bucketName(d.ref.Interface())
 }
 
 func (d *deleteSink) add(i *item) error {
@@ -532,7 +573,7 @@ func (c *countSink) elem() reflect.Value {
 }
 
 func (c *countSink) bucketName() string {
-	return reflect.Indirect(c.ref).Type().Name()
+	return bucketName(c.ref.Interface())
 }
 
 func (c *countSink) add(i *item) error {
@@ -604,7 +645,7 @@ func (e *eachSink) elem() reflect.Value {
 }
 
 func (e *eachSink) bucketName() string {
-	return reflect.Indirect(e.ref).Type().Name()
+	return bucketName(e.ref.Interface())
 }
 
 func (e *eachSink) add(i *item) error {

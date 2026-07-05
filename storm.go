@@ -15,6 +15,13 @@ const (
 	metadataBucket = "__rainstorm_metadata"
 )
 
+// BucketNamer is an interface that can be implemented by structs to provide
+// a custom bucket name. This is essential for runtime-generated types
+// (via reflect.StructOf) that have no static type name.
+type BucketNamer interface {
+	RainstormBucketName() string
+}
+
 // Defaults to json
 var defaultCodec = json.Codec
 

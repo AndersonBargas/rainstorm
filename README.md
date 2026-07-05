@@ -68,6 +68,86 @@ To take advantage of the performance changes made after the fork, just use versi
 import "github.com/AndersonBargas/rainstorm/v5"
 ```
 
+## Custom Bucket Names & Runtime Types
+
+### `BucketNamer` Interface
+
+Rainstorm v5.3+ provides the `BucketNamer` interface for custom bucket name resolution.
+This is essential for runtime-generated types (via `reflect.StructOf`) that have no static
+type name.
+
+```go
+type BucketNamer interface {
+    RainstormBucketName() string
+}
+```
+
+When a struct implements `BucketNamer`, Rainstorm uses the returned string as the bucket
+name instead of the struct's type name:
+
+```go
+type User struct {
+    ID   int    `rainstorm:"id,increment"`
+    Name string `rainstorm:"index"`
+}
+
+func (u User) RainstormBucketName() string {
+    return "customers"
+}
+
+// Saves to bucket "customers" instead of "User"
+db.Save(&User{Name: "Alice"})
+
+// Reads from bucket "customers"
+var u User
+db.One("ID", 1, &u)
+```
+
+### Runtime-Generated Structs (`reflect.StructOf`)
+
+Anonymous structs created at runtime can be saved and queried using `db.From()`:
+
+```go
+dynType := reflect.StructOf([]reflect.StructField{
+    {
+        Name: "ID",
+        Type: reflect.TypeOf(0),
+        Tag:  reflect.StructTag(`rainstorm:"id,increment"`),
+    },
+    {
+        Name: "Name",
+        Type: reflect.TypeOf(""),
+        Tag:  reflect.StructTag(`rainstorm:"index"`),
+    },
+})
+
+// Use an explicit bucket name via db.From
+node := db.From("dynamic_users")
+
+// Save a runtime-generated instance
+val := reflect.New(dynType)
+val.Elem().FieldByName("Name").SetString("Dynamic Alice")
+node.Save(val.Interface())
+
+// Read back
+var result interface{}
+result = reflect.New(dynType).Interface()
+node.One("ID", 1, result)
+```
+
+For more complex scenarios, wrap the runtime type in a named struct that implements
+`BucketNamer`:
+
+```go
+type DynamicWrapper struct {
+    Data interface{}
+}
+
+func (d DynamicWrapper) RainstormBucketName() string {
+    return "my_runtime_table"
+}
+```
+
 ## Open a database
 
 Quick way of opening a database
