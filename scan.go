@@ -159,7 +159,7 @@ func (n *node) cursor(tx *bolt.Tx) *bolt.Cursor {
 	var c *bolt.Cursor
 
 	if len(n.rootBucket) > 0 {
-		b := n.GetBucket(tx)
+		b := n.getBucket(tx)
 		if b == nil {
 			return nil
 		}

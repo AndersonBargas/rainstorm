@@ -391,25 +391,25 @@ func TestCount(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 101, count)
 
-	tx, err := db.Begin(ctx, true)
+	err = db.WriteTransaction(ctx, func(txn Node) error {
+		_, cerr := txn.Count(ctx, User{})
+		require.Equal(t, ErrStructPtrNeeded, cerr)
+
+		c, cerr := txn.Count(ctx, &User{})
+		require.NoError(t, cerr)
+		require.Equal(t, 101, c)
+
+		w2 := User{Name: "John", ID: 102, Slug: fmt.Sprintf("John%d", 102), DateOfBirth: time.Now().Add(-time.Duration(101*10) * time.Minute)}
+		cerr = txn.Save(ctx, &w2)
+		require.NoError(t, cerr)
+
+		c, cerr = txn.Count(ctx, &User{})
+		require.NoError(t, cerr)
+		require.Equal(t, 102, c)
+
+		return nil
+	})
 	require.NoError(t, err)
-
-	_, err = tx.Count(ctx, User{})
-	require.Equal(t, ErrStructPtrNeeded, err)
-
-	count, err = tx.Count(ctx, &User{})
-	require.NoError(t, err)
-	require.Equal(t, 101, count)
-
-	w = User{Name: "John", ID: 102, Slug: fmt.Sprintf("John%d", 102), DateOfBirth: time.Now().Add(-time.Duration(101*10) * time.Minute)}
-	err = tx.Save(ctx, &w)
-	require.NoError(t, err)
-
-	count, err = tx.Count(ctx, &User{})
-	require.NoError(t, err)
-	require.Equal(t, 102, count)
-
-	tx.Commit(ctx)
 }
 
 func TestCountEmpty(t *testing.T) {

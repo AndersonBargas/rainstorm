@@ -120,7 +120,7 @@ func (n *node) one(ctx context.Context, tx *bolt.Tx, bucketName, fieldName strin
 		return err
 	}
 
-	bucket := n.GetBucket(tx, bucketName)
+	bucket := n.getBucket(tx, bucketName)
 	if bucket == nil {
 		return ErrNotFound
 	}
@@ -258,7 +258,7 @@ func (n *node) find(ctx context.Context, tx *bolt.Tx, bucketName, fieldName stri
 		return err
 	}
 
-	bucket := n.GetBucket(tx, bucketName)
+	bucket := n.getBucket(tx, bucketName)
 	if bucket == nil {
 		return ErrNotFound
 	}
@@ -373,7 +373,7 @@ func (n *node) allByIndex(ctx context.Context, tx *bolt.Tx, fieldName string, cf
 		return err
 	}
 
-	bucket := n.GetBucket(tx, cfg.Name)
+	bucket := n.getBucket(tx, cfg.Name)
 	if bucket == nil {
 		return ErrNotFound
 	}
@@ -560,7 +560,7 @@ func (n *node) rnge(ctx context.Context, tx *bolt.Tx, bucketName, fieldName stri
 		return err
 	}
 
-	bucket := n.GetBucket(tx, bucketName)
+	bucket := n.getBucket(tx, bucketName)
 	if bucket == nil {
 		if err := checkContext(ctx); err != nil {
 			return err
@@ -694,7 +694,7 @@ func (n *node) prefix(ctx context.Context, tx *bolt.Tx, bucketName, fieldName st
 		return err
 	}
 
-	bucket := n.GetBucket(tx, bucketName)
+	bucket := n.getBucket(tx, bucketName)
 	if bucket == nil {
 		if err := checkContext(ctx); err != nil {
 			return err

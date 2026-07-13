@@ -130,25 +130,25 @@ func TestBucketHelpers_DoNotMutateNodePath(t *testing.T) {
 	writeTx, err := db.Bolt.Begin(true)
 	require.NoError(t, err)
 
-	// CreateBucketIfNotExists
-	b, err := node.CreateBucketIfNotExists(writeTx, "users")
+	// createBucketIfNotExists
+	b, err := node.createBucketIfNotExists(writeTx, "users")
 	require.NoError(t, err)
 	require.NotNil(t, b)
 	require.Equal(t, original, node.rootBucket, "CreateBucketIfNotExists must not mutate rootBucket")
 
-	// CreateBucketIfNotExists with empty bucket
-	b2, err := node.CreateBucketIfNotExists(writeTx, "")
+	// createBucketIfNotExists with empty bucket
+	b2, err := node.createBucketIfNotExists(writeTx, "")
 	require.NoError(t, err)
 	require.NotNil(t, b2)
 	require.Equal(t, original, node.rootBucket, "CreateBucketIfNotExists with empty must not mutate rootBucket")
 
-	// GetBucket
-	b3 := node.GetBucket(writeTx, "users")
+	// getBucket
+	b3 := node.getBucket(writeTx, "users")
 	require.NotNil(t, b3)
 	require.Equal(t, original, node.rootBucket, "GetBucket must not mutate rootBucket")
 
-	// GetBucket with empty children
-	b4 := node.GetBucket(writeTx)
+	// getBucket with empty children
+	b4 := node.getBucket(writeTx)
 	require.NotNil(t, b4)
 	require.Equal(t, original, node.rootBucket, "GetBucket without children must not mutate rootBucket")
 
@@ -196,7 +196,7 @@ func TestNodePath_ExcessCapacity_CreateBucketIfNotExists(t *testing.T) {
 	writeTx, err := db.Bolt.Begin(true)
 	require.NoError(t, err)
 
-	_, err = n.CreateBucketIfNotExists(writeTx, "users")
+	_, err = n.createBucketIfNotExists(writeTx, "users")
 	require.NoError(t, err)
 
 	require.NoError(t, writeTx.Commit())
@@ -211,7 +211,7 @@ func TestNodePath_ExcessCapacity_CreateBucketIfNotExists(t *testing.T) {
 }
 
 // TestNodePath_ExcessCapacity_GetBucket verifies that
-// GetBucket does not write into the parent's backing array.
+// getBucket does not write into the parent's backing array.
 func TestNodePath_ExcessCapacity_GetBucket(t *testing.T) {
 	root := make([]string, 1, 8)
 	root[0] = "tenant"
@@ -224,12 +224,12 @@ func TestNodePath_ExcessCapacity_GetBucket(t *testing.T) {
 	writeTx, err := db.Bolt.Begin(true)
 	require.NoError(t, err)
 
-	// First create the bucket so that GetBucket can find it.
-	_, err = n.CreateBucketIfNotExists(writeTx, "users")
+	// First create the bucket so that getBucket can find it.
+	_, err = n.createBucketIfNotExists(writeTx, "users")
 	require.NoError(t, err)
 
-	// Now GetBucket should find it.
-	b := n.GetBucket(writeTx, "users")
+	// Now getBucket should find it.
+	b := n.getBucket(writeTx, "users")
 	require.NotNil(t, b)
 
 	require.NoError(t, writeTx.Commit())

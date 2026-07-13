@@ -638,8 +638,8 @@ func TestDropByString(t *testing.T) {
 	require.NoError(t, err)
 
 	db.Bolt.Update(func(tx *bolt.Tx) error {
-		require.Nil(t, db.From().GetBucket(tx, "b1"))
-		d := db.WithTransaction(tx)
+		require.Nil(t, db.From().(*node).getBucket(tx, "b1"))
+		d := db.Node.(*node).withTransaction(tx)
 		n := d.From("a1")
 		err = n.Save(ctx, &SimpleUser{ID: 10, Name: "John"})
 		require.NoError(t, err)
@@ -665,8 +665,8 @@ func TestDropByStruct(t *testing.T) {
 	require.NoError(t, err)
 
 	db.Bolt.Update(func(tx *bolt.Tx) error {
-		require.Nil(t, n.GetBucket(tx, "SimpleUser"))
-		d := db.WithTransaction(tx)
+		require.Nil(t, n.(*node).getBucket(tx, "SimpleUser"))
+		d := db.Node.(*node).withTransaction(tx)
 		n := d.From("a1")
 		err = n.Save(ctx, &SimpleUser{ID: 10, Name: "John"})
 		require.NoError(t, err)
@@ -674,7 +674,7 @@ func TestDropByStruct(t *testing.T) {
 		err = n.Drop(ctx, &SimpleUser{})
 		require.NoError(t, err)
 
-		require.Nil(t, n.GetBucket(tx, "SimpleUser"))
+		require.Nil(t, n.(*node).getBucket(tx, "SimpleUser"))
 		return nil
 	})
 }

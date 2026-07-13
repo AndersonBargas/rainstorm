@@ -35,7 +35,7 @@ func TestNodeWithTransaction(t *testing.T) {
 
 	var user User
 	db.Bolt.Update(func(tx *bolt.Tx) error {
-		dbx := db.WithTransaction(tx)
+		dbx := db.Node.(*node).withTransaction(tx)
 		err := dbx.Save(ctx, &User{ID: 10, Name: "John"})
 		require.NoError(t, err)
 		err = dbx.One(ctx, "ID", 10, &user)

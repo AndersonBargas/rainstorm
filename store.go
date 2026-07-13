@@ -61,7 +61,7 @@ func (n *node) init(ctx context.Context, tx *bolt.Tx, cfg *structConfig) error {
 		return err
 	}
 
-	bucket, err := n.CreateBucketIfNotExists(tx, cfg.Name)
+	bucket, err := n.createBucketIfNotExists(tx, cfg.Name)
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func (n *node) reIndex(ctx context.Context, tx *bolt.Tx, data interface{}, cfg *
 		return err
 	}
 
-	root := n.WithTransaction(tx)
+	root := n.withTransaction(tx)
 	nodes, err := root.From(cfg.Name).PrefixScan(ctx, indexPrefix)
 	if err != nil {
 		return err
@@ -144,7 +144,7 @@ func (n *node) reIndex(ctx context.Context, tx *bolt.Tx, data interface{}, cfg *
 		return err
 	}
 
-	bucket := root.GetBucket(tx, cfg.Name)
+	bucket := root.getBucket(tx, cfg.Name)
 	if bucket == nil {
 		return ErrNotFound
 	}
@@ -242,7 +242,7 @@ func (n *node) save(ctx context.Context, tx *bolt.Tx, cfg *structConfig, data in
 		return err
 	}
 
-	bucket, err := n.CreateBucketIfNotExists(tx, cfg.Name)
+	bucket, err := n.createBucketIfNotExists(tx, cfg.Name)
 	if err != nil {
 		return err
 	}
@@ -477,7 +477,7 @@ func (n *node) update(ctx context.Context, data interface{}, fn func(*reflect.Va
 			return err
 		}
 
-		err = n.WithTransaction(tx).One(ctx, cfg.ID.Name, cfg.ID.Value.Interface(), current.Interface())
+		err = n.withTransaction(tx).One(ctx, cfg.ID.Name, cfg.ID.Value.Interface(), current.Interface())
 		if err != nil {
 			return err
 		}
@@ -535,7 +535,7 @@ func (n *node) drop(ctx context.Context, tx *bolt.Tx, bucketName string) error {
 		return err
 	}
 
-	bucket := n.GetBucket(tx)
+	bucket := n.getBucket(tx)
 	var err error
 	if bucket == nil {
 		err = tx.DeleteBucket([]byte(bucketName))
@@ -588,7 +588,7 @@ func (n *node) deleteStruct(ctx context.Context, tx *bolt.Tx, cfg *structConfig,
 		return err
 	}
 
-	bucket := n.GetBucket(tx, cfg.Name)
+	bucket := n.getBucket(tx, cfg.Name)
 	if bucket == nil {
 		return ErrNotFound
 	}

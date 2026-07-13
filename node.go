@@ -9,7 +9,6 @@ import (
 
 // A Node in Rainstorm represents the API to a BoltDB bucket.
 type Node interface {
-	Tx
 	TypeStore
 	KeyValueStore
 	BucketScanner
@@ -22,25 +21,15 @@ type Node interface {
 	// In the normal, simple case this will be empty.
 	Bucket() []string
 
-	// GetBucket returns the given bucket below the current node.
-	GetBucket(tx *bolt.Tx, children ...string) *bolt.Bucket
-
-	// CreateBucketIfNotExists creates the bucket below the current node if it doesn't
-	// already exist.
-	CreateBucketIfNotExists(tx *bolt.Tx, bucket string) (*bolt.Bucket, error)
-
-	// WithTransaction returns a New Rainstorm node that will use the given transaction.
-	WithTransaction(tx *bolt.Tx) Node
-
-	// Begin starts a new transaction.
-	Begin(ctx context.Context, writable bool) (Node, error)
-
 	// Codec used by this instance of Rainstorm
 	Codec() codec.MarshalUnmarshaler
 
 	// WithCodec returns a New Rainstorm Node that will use the given Codec.
 	WithCodec(codec codec.MarshalUnmarshaler) Node
 }
+
+// Compile-time assertion that *node implements the final Node interface.
+var _ Node = (*node)(nil)
 
 // A Node in Rainstorm represents the API to a BoltDB bucket.
 type node struct {
@@ -78,8 +67,8 @@ func (n node) From(addend ...string) Node {
 	return &n
 }
 
-// WithTransaction returns a new Rainstorm Node that will use the given transaction.
-func (n node) WithTransaction(tx *bolt.Tx) Node {
+// withTransaction returns a new Rainstorm Node that will use the given transaction.
+func (n node) withTransaction(tx *bolt.Tx) *node {
 	n.tx = tx
 	return &n
 }

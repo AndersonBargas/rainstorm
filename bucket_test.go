@@ -16,9 +16,9 @@ func TestBucket(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	require.Nil(t, db.GetBucket(readTx, "none"))
+	require.Nil(t, db.Node.(*node).getBucket(readTx, "none"))
 
-	b, err := db.CreateBucketIfNotExists(readTx, "new")
+	b, err := db.Node.(*node).createBucketIfNotExists(readTx, "new")
 
 	// Cannot create buckets in a read transaction
 	require.Error(t, err)
@@ -36,15 +36,15 @@ func TestBucket(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	require.Nil(t, db.GetBucket(writeTx, "none"))
+	require.Nil(t, db.Node.(*node).getBucket(writeTx, "none"))
 
-	b, err = db.CreateBucketIfNotExists(writeTx, "new")
+	b, err = db.Node.(*node).createBucketIfNotExists(writeTx, "new")
 
 	require.NoError(t, err)
 	require.NotNil(t, b)
 
 	n2 := db.From("a", "b")
-	b, err = n2.CreateBucketIfNotExists(writeTx, "c")
+	b, err = n2.(*node).createBucketIfNotExists(writeTx, "c")
 
 	require.NoError(t, err)
 	require.NotNil(t, b)
@@ -59,9 +59,9 @@ func TestBucket(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	require.NotNil(t, db.GetBucket(readTx, "new"))
-	require.Nil(t, db.GetBucket(readTx, "c"))
-	require.NotNil(t, n2.GetBucket(readTx, "c"))
+	require.NotNil(t, db.Node.(*node).getBucket(readTx, "new"))
+	require.Nil(t, db.Node.(*node).getBucket(readTx, "c"))
+	require.NotNil(t, n2.(*node).getBucket(readTx, "c"))
 
 	readTx.Rollback()
 	// End read tx

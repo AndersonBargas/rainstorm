@@ -259,7 +259,7 @@ func ExampleDB_DeleteStruct() {
 	// <nil>
 }
 
-func ExampleDB_Begin() {
+func ExampleDB_WriteTransaction() {
 	dir, db := prepareDB()
 	defer os.RemoveAll(dir)
 	defer db.Close()
@@ -269,41 +269,36 @@ func ExampleDB_Begin() {
 	// both start out with a balance of 10000 cents
 	var account1, account2 Account
 
-	tx, err := db.Begin(ctx, true)
+	err := db.WriteTransaction(ctx, func(tx rainstorm.Node) error {
+		err := tx.One(ctx, "ID", 1, &account1)
+		if err != nil {
+			return err
+		}
+
+		err = tx.One(ctx, "ID", 2, &account2)
+		if err != nil {
+			return err
+		}
+
+		account1.Amount -= 1000
+		account2.Amount += 1000
+
+		err = tx.Save(ctx, &account1)
+		if err != nil {
+			return err
+		}
+
+		err = tx.Save(ctx, &account2)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
 
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer tx.Rollback()
-
-	err = tx.One(ctx, "ID", 1, &account1)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = tx.One(ctx, "ID", 2, &account2)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	account1.Amount -= 1000
-	account2.Amount += 1000
-
-	err = tx.Save(ctx, &account1)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = tx.Save(ctx, &account2)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	tx.Commit(ctx)
 
 	var account1Reloaded, account2Reloaded Account
 

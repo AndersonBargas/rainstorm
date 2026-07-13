@@ -402,15 +402,15 @@ func TestDynamicStructInit(t *testing.T) {
 	})
 
 	bucketName := "dyn_init_test"
-	node := db.From(bucketName)
+	n := db.From(bucketName)
 
 	proto := reflect.New(dynType).Interface()
-	err := node.Init(ctx, proto)
+	err := n.Init(ctx, proto)
 	require.NoError(t, err)
 
 	// Verify bucket exists
 	err = db.Bolt.View(func(tx *bolt.Tx) error {
-		b := db.GetBucket(tx, bucketName)
+		b := db.Node.(*node).getBucket(tx, bucketName)
 		require.NotNil(t, b)
 
 		// Check index buckets were created
@@ -541,7 +541,7 @@ func TestBucketNamerDrop(t *testing.T) {
 
 	// Verify bucket is gone
 	err = db.Bolt.View(func(tx *bolt.Tx) error {
-		b := db.GetBucket(tx, "drop_me")
+		b := db.Node.(*node).getBucket(tx, "drop_me")
 		require.Nil(t, b)
 		return nil
 	})

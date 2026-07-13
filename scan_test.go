@@ -24,10 +24,11 @@ func TestPrefixScan(t *testing.T) {
 	doTestPrefixScan(t, ctx, node)
 	doTestPrefixScan(t, ctx, db)
 
-	nodeWithTransaction, _ := db.Begin(ctx, true)
-	defer nodeWithTransaction.Commit(ctx)
-
-	doTestPrefixScan(t, ctx, nodeWithTransaction)
+	err = db.WriteTransaction(ctx, func(txn Node) error {
+		doTestPrefixScan(t, ctx, txn)
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func doTestPrefixScan(t *testing.T, ctx context.Context, node Node) {
@@ -98,10 +99,11 @@ func TestRangeScan(t *testing.T) {
 	doTestRangeScan(t, ctx, node)
 	doTestRangeScan(t, ctx, db)
 
-	nodeWithTransaction, _ := db.Begin(ctx, true)
-	defer nodeWithTransaction.Commit(ctx)
-
-	doTestRangeScan(t, ctx, nodeWithTransaction)
+	err := db.WriteTransaction(ctx, func(txn Node) error {
+		doTestRangeScan(t, ctx, txn)
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func doTestRangeScan(t *testing.T, ctx context.Context, node Node) {

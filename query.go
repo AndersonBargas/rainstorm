@@ -272,7 +272,7 @@ func (q *query) query(ctx context.Context, tx *bolt.Tx, sink sink) error {
 		return err
 	}
 
-	bucket := q.node.GetBucket(tx, bucketName)
+	bucket := q.node.getBucket(tx, bucketName)
 
 	if err := checkContext(ctx); err != nil {
 		return err

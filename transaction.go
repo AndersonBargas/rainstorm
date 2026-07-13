@@ -16,68 +16,6 @@ type TransactionManager interface {
 // Compile-time assertion: *DB implements TransactionManager.
 var _ TransactionManager = (*DB)(nil)
 
-// Tx is a transaction.
-type Tx interface {
-	// Commit writes all changes to disk.
-	Commit(ctx context.Context) error
-
-	// Rollback closes the transaction and ignores all previous updates.
-	Rollback() error
-}
-
-// Begin starts a new transaction.
-func (n node) Begin(ctx context.Context, writable bool) (Node, error) {
-	if err := checkContext(ctx); err != nil {
-		return nil, err
-	}
-
-	var err error
-
-	n.tx, err = n.s.Bolt.Begin(writable)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = checkContext(ctx); err != nil {
-		_ = n.tx.Rollback()
-		return nil, err
-	}
-
-	return &n, nil
-}
-
-// Rollback closes the transaction and ignores all previous updates.
-func (n *node) Rollback() error {
-	if n.tx == nil {
-		return ErrNotInTransaction
-	}
-
-	err := n.tx.Rollback()
-	if err == bolt.ErrTxClosed {
-		return ErrNotInTransaction
-	}
-
-	return err
-}
-
-// Commit writes all changes to disk.
-func (n *node) Commit(ctx context.Context) error {
-	if n.tx == nil {
-		return ErrNotInTransaction
-	}
-
-	if err := checkContext(ctx); err != nil {
-		return err
-	}
-
-	err := n.tx.Commit()
-	if err == bolt.ErrTxClosed {
-		return ErrNotInTransaction
-	}
-
-	return err
-}
-
 // ReadTransaction executes fn within a read-only bbolt transaction.
 // The transaction is automatically closed when fn returns.
 //
@@ -88,9 +26,6 @@ func (n *node) Commit(ctx context.Context) error {
 // Panic behavior: if fn panics, bbolt closes (rolls back) the read
 // transaction and the panic propagates to the caller. Rainstorm does
 // not recover panics.
-//
-// Manual Commit or Rollback calls on the transaction-bound Node inside
-// the callback will panic because the transaction is managed by bbolt.
 func (s *DB) ReadTransaction(ctx context.Context, fn func(Node) error) error {
 	if err := checkContext(ctx); err != nil {
 		return err
@@ -104,7 +39,10 @@ func (s *DB) ReadTransaction(ctx context.Context, fn func(Node) error) error {
 			return err
 		}
 
-		txNode := s.transactionNode(tx)
+		txNode, err := s.transactionNode(tx)
+		if err != nil {
+			return err
+		}
 		if err := fn(txNode); err != nil {
 			return err
 		}
@@ -126,15 +64,11 @@ func (s *DB) ReadTransaction(ctx context.Context, fn func(Node) error) error {
 // transaction is rolled back and ctx.Err() is returned. After a
 // successful commit, a later cancellation is not retroactively applied.
 //
-// Unlike legacy methods, WriteTransaction ignores batch mode entirely
-// and always uses Bolt.Update, which executes the callback exactly once.
+// WriteTransaction uses bbolt.Update, which executes the callback exactly once.
 //
 // Panic behavior: if fn panics, bbolt rolls back the transaction and
 // the panic propagates to the caller. All writes performed before the
 // panic are discarded. Rainstorm does not recover panics.
-//
-// Manual Commit or Rollback calls on the transaction-bound Node inside
-// the callback will panic because the transaction is managed by bbolt.
 func (s *DB) WriteTransaction(ctx context.Context, fn func(Node) error) error {
 	if err := checkContext(ctx); err != nil {
 		return err
@@ -148,7 +82,10 @@ func (s *DB) WriteTransaction(ctx context.Context, fn func(Node) error) error {
 			return err
 		}
 
-		txNode := s.transactionNode(tx)
+		txNode, err := s.transactionNode(tx)
+		if err != nil {
+			return err
+		}
 		if err := fn(txNode); err != nil {
 			return err
 		}
@@ -164,6 +101,10 @@ func (s *DB) WriteTransaction(ctx context.Context, fn func(Node) error) error {
 // transactionNode builds a transaction-bound node that preserves
 // codec, root bucket, and other configuration from the root node.
 // It does not modify the root node or store state on DB.
-func (s *DB) transactionNode(tx *bolt.Tx) Node {
-	return s.Node.WithTransaction(tx)
+func (s *DB) transactionNode(tx *bolt.Tx) (Node, error) {
+	root, ok := s.Node.(*node)
+	if !ok {
+		return nil, ErrBadType
+	}
+	return root.withTransaction(tx), nil
 }

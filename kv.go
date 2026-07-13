@@ -69,7 +69,7 @@ func (n *node) getBytes(ctx context.Context, tx *bolt.Tx, bucketName string, id 
 		return nil, err
 	}
 
-	bucket := n.GetBucket(tx, bucketName)
+	bucket := n.getBucket(tx, bucketName)
 	if bucket == nil {
 		return nil, ErrNotFound
 	}
@@ -114,7 +114,7 @@ func (n *node) setBytes(ctx context.Context, tx *bolt.Tx, bucketName string, id,
 		return err
 	}
 
-	bucket, err := n.CreateBucketIfNotExists(tx, bucketName)
+	bucket, err := n.createBucketIfNotExists(tx, bucketName)
 	if err != nil {
 		return err
 	}
@@ -234,7 +234,7 @@ func (n *node) delete(ctx context.Context, tx *bolt.Tx, bucketName string, id []
 		return err
 	}
 
-	bucket := n.GetBucket(tx, bucketName)
+	bucket := n.getBucket(tx, bucketName)
 	if bucket == nil {
 		return ErrNotFound
 	}
@@ -269,7 +269,7 @@ func (n *node) KeyExists(ctx context.Context, bucketName string, key any) (bool,
 			return err
 		}
 
-		bucket := n.GetBucket(tx, bucketName)
+		bucket := n.getBucket(tx, bucketName)
 		if bucket == nil {
 			return ErrNotFound
 		}
