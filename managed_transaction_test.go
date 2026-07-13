@@ -230,21 +230,6 @@ func TestWriteTransaction_CallbackRunsExactlyOnce(t *testing.T) {
 	require.Equal(t, 1, counter)
 }
 
-func TestWriteTransaction_IgnoresBatchMode(t *testing.T) {
-	// Open with batch mode enabled.
-	db, cleanup := createDB(t, Batch())
-	defer cleanup()
-
-	var counter int
-	err := db.WriteTransaction(context.Background(), func(txNode Node) error {
-		counter++
-		return nil
-	})
-	require.NoError(t, err)
-	require.Equal(t, 1, counter,
-		"WriteTransaction must execute callback exactly once, ignoring batch mode")
-}
-
 func TestWriteTransaction_CancellationAfterReturnDoesNotUndoCommit(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()

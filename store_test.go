@@ -49,7 +49,7 @@ func TestInit(t *testing.T) {
 }
 
 func TestInitMetadata(t *testing.T) {
-	db, cleanup := createDB(t, Batch())
+	db, cleanup := createDB(t)
 	defer cleanup()
 
 	ctx := context.Background()
@@ -440,28 +440,41 @@ func TestSaveByValue(t *testing.T) {
 	require.Equal(t, ErrStructPtrNeeded, err)
 }
 
-func TestSaveWithBatch(t *testing.T) {
-	db, cleanup := createDB(t, Batch())
+func TestConcurrentSave(t *testing.T) {
+	db, cleanup := createDB(t)
 	defer cleanup()
 
 	ctx := context.Background()
 
 	var wg sync.WaitGroup
+	errs := make(chan error, 5)
 
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			err := db.Save(ctx, &User{ID: i + 1, Name: "John"})
-			require.NoError(t, err)
+			errs <- db.Save(ctx, &User{ID: i + 1, Name: "John", Slug: fmt.Sprintf("cs%d", i)})
 		}(i)
 	}
 
 	wg.Wait()
+	close(errs)
+
+	for e := range errs {
+		require.NoError(t, e)
+	}
+
+	// Confirm all records persisted.
+	for i := 0; i < 5; i++ {
+		var u User
+		err := db.One(ctx, "ID", i+1, &u)
+		require.NoError(t, err)
+		require.Equal(t, "John", u.Name)
+	}
 }
 
 func TestSaveMetadata(t *testing.T) {
-	db, cleanup := createDB(t, Batch())
+	db, cleanup := createDB(t)
 	defer cleanup()
 
 	ctx := context.Background()

@@ -62,26 +62,6 @@ func TestNewRainstormWithRainstormOptions(t *testing.T) {
 	require.Equal(t, dc, db2.Codec())
 }
 
-func TestNewRainstormWithBatch(t *testing.T) {
-	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
-	defer os.RemoveAll(dir)
-
-	db1, _ := Open(context.Background(), filepath.Join(dir, "rainstorm1.db"), Batch())
-	defer db1.Close()
-
-	require.True(t, db1.Node.(*node).batchMode)
-	n := db1.From().(*node)
-	require.True(t, n.batchMode)
-	n = db1.WithBatch(true).(*node)
-	require.True(t, n.batchMode)
-	n = db1.WithBatch(false).(*node)
-	require.False(t, n.batchMode)
-	n = n.From().(*node)
-	require.False(t, n.batchMode)
-	n = n.WithBatch(true).(*node)
-	require.True(t, n.batchMode)
-}
-
 func TestBoltDB(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)

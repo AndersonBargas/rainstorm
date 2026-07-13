@@ -32,14 +32,6 @@ func Codec(c codec.MarshalUnmarshaler) OpenOption {
 	}
 }
 
-// Batch enables the use of batch instead of update for read-write transactions.
-func Batch() OpenOption {
-	return func(opts *Options) error {
-		opts.batchMode = true
-		return nil
-	}
-}
-
 // Root used to set the root bucket. See also the From method.
 func Root(root ...string) OpenOption {
 	path := cloneBucketPath(root)
@@ -90,9 +82,6 @@ type Options struct {
 
 	// Bolt options
 	boltOptions *bolt.Options
-
-	// Enable batch mode for read-write transaction, instead of update mode
-	batchMode bool
 
 	// The root bucket name
 	rootBucket []string

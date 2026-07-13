@@ -128,7 +128,7 @@ func TestSet(t *testing.T) {
 }
 
 func TestSetMetadata(t *testing.T) {
-	db, cleanup := createDB(t, Batch())
+	db, cleanup := createDB(t)
 	defer cleanup()
 
 	ctx := context.Background()

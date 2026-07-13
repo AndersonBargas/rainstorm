@@ -48,7 +48,6 @@ func Open(ctx context.Context, path string, rainstormOptions ...OpenOption) (*DB
 	n := node{
 		s:          &s,
 		codec:      opts.codec,
-		batchMode:  opts.batchMode,
 		rootBucket: opts.rootBucket,
 	}
 
