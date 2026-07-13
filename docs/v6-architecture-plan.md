@@ -302,8 +302,9 @@ Therefore:
 
 - `WriteTransaction` must execute its callback exactly once;
 - v5's global `Batch()` behavior must not alter `WriteTransaction` semantics;
-- if batch support is retained, it must be a separately named, explicitly documented API whose callback is required to be retry-safe;
-- batch support is not required for v6.0.
+- v6.0 removes the `Batch()` open option, `WithBatch`, and implicit batch state;
+- v6.0 does not provide a batch replacement API;
+- a future explicit batch API may be considered only under a separate design that names its retry semantics and requires retry-safe callbacks.
 
 ### 6.4 Manual transactions and native escape hatch
 
@@ -523,7 +524,7 @@ Acceptance: repository compiles; every I/O method requires context; no compatibi
 - implement pre-acquisition, post-acquisition, and pre-commit checks;
 - define panic and rollback-error behavior;
 - ensure callback executes once;
-- separate or remove implicit batch semantics;
+- remove `Batch()`, `WithBatch`, and all implicit batch state from v6.0;
 - add deterministic transaction tests.
 
 Acceptance: rollback, cancellation, commit, panic, visibility, and single-execution tests pass under `-race`.
