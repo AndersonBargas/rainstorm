@@ -42,8 +42,9 @@ func Batch() OpenOption {
 
 // Root used to set the root bucket. See also the From method.
 func Root(root ...string) OpenOption {
+	path := cloneBucketPath(root)
 	return func(opts *Options) error {
-		opts.rootBucket = root
+		opts.rootBucket = cloneBucketPath(path)
 		return nil
 	}
 }

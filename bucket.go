@@ -8,7 +8,13 @@ func (n *node) CreateBucketIfNotExists(tx *bolt.Tx, bucket string) (*bolt.Bucket
 	var b *bolt.Bucket
 	var err error
 
-	bucketNames := n.rootBucket
+	extra := 0
+	if bucket != "" {
+		extra = 1
+	}
+
+	bucketNames := make([]string, 0, len(n.rootBucket)+extra)
+	bucketNames = append(bucketNames, n.rootBucket...)
 	if bucket != "" {
 		bucketNames = append(bucketNames, bucket)
 	}
@@ -41,7 +47,8 @@ func (n *node) CreateBucketIfNotExists(tx *bolt.Tx, bucket string) (*bolt.Bucket
 func (n *node) GetBucket(tx *bolt.Tx, children ...string) *bolt.Bucket {
 	var b *bolt.Bucket
 
-	bucketNames := n.rootBucket
+	bucketNames := make([]string, 0, len(n.rootBucket)+len(children))
+	bucketNames = append(bucketNames, n.rootBucket...)
 	for _, child := range children {
 		if child != "" {
 			bucketNames = append(bucketNames, child)

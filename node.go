@@ -62,10 +62,25 @@ type node struct {
 	batchMode bool
 }
 
+// cloneBucketPath returns a defensive copy of the given path slice.
+// nil is preserved as nil; []string{} is preserved as an empty non-nil slice.
+func cloneBucketPath(path []string) []string {
+	if path == nil {
+		return nil
+	}
+
+	cloned := make([]string, len(path))
+	copy(cloned, path)
+	return cloned
+}
+
 // From returns a new Rainstorm Node with a new bucket root below the current.
 // All DB operations on the new node will be executed relative to this bucket.
 func (n node) From(addend ...string) Node {
-	n.rootBucket = append(n.rootBucket, addend...)
+	path := make([]string, 0, len(n.rootBucket)+len(addend))
+	path = append(path, n.rootBucket...)
+	path = append(path, addend...)
+	n.rootBucket = path
 	return &n
 }
 
@@ -90,7 +105,7 @@ func (n node) WithBatch(enabled bool) Node {
 // Bucket returns the bucket name as a slice from the root.
 // In the normal, simple case this will be empty.
 func (n *node) Bucket() []string {
-	return n.rootBucket
+	return cloneBucketPath(n.rootBucket)
 }
 
 // Codec returns the EncodeDecoder used by this instance of Rainstorm
