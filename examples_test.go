@@ -58,7 +58,7 @@ func ExampleDB_Save() {
 
 	// Output:
 	// 1
-	// already exists
+	// rainstorm save: already exists
 }
 
 func ExampleDB_One() {

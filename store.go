@@ -39,22 +39,22 @@ type TypeStore interface {
 // Init creates the indexes and buckets for a given structure
 func (n *node) Init(ctx context.Context, data any) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("init", err)
 	}
 
 	v := reflect.ValueOf(data)
 	cfg, err := extract(&v)
 	if err != nil {
-		return err
+		return wrapError("init", err)
 	}
 
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("init", err)
 	}
 
-	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
+	return wrapError("init", n.readWriteTx(ctx, func(tx *bolt.Tx) error {
 		return n.init(ctx, tx, cfg)
-	})
+	}))
 }
 
 func (n *node) init(ctx context.Context, tx *bolt.Tx, cfg *structConfig) error {
@@ -108,26 +108,26 @@ func (n *node) init(ctx context.Context, tx *bolt.Tx, cfg *structConfig) error {
 
 func (n *node) ReIndex(ctx context.Context, data any) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("reindex", err)
 	}
 
 	ref := reflect.ValueOf(data)
 
 	if !ref.IsValid() || ref.Kind() != reflect.Ptr || ref.Elem().Kind() != reflect.Struct {
-		return ErrStructPtrNeeded
+		return wrapError("reindex", ErrStructPtrNeeded)
 	}
 
 	cfg, err := extract(&ref)
 	if err != nil {
-		return err
+		return wrapError("reindex", err)
 	}
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("reindex", err)
 	}
 
-	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
+	return wrapError("reindex", n.readWriteTx(ctx, func(tx *bolt.Tx) error {
 		return n.reIndex(ctx, tx, data, cfg)
-	})
+	}))
 }
 
 func (n *node) reIndex(ctx context.Context, tx *bolt.Tx, data interface{}, cfg *structConfig) error {
@@ -209,33 +209,33 @@ func (n *node) reIndex(ctx context.Context, tx *bolt.Tx, data interface{}, cfg *
 // Save a structure
 func (n *node) Save(ctx context.Context, data any) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("save", err)
 	}
 
 	ref := reflect.ValueOf(data)
 
 	if !ref.IsValid() || ref.Kind() != reflect.Ptr || ref.Elem().Kind() != reflect.Struct {
-		return ErrStructPtrNeeded
+		return wrapError("save", ErrStructPtrNeeded)
 	}
 
 	cfg, err := extract(&ref)
 	if err != nil {
-		return err
+		return wrapError("save", err)
 	}
 
 	if cfg.ID.IsZero {
 		if !cfg.ID.IsInteger || !cfg.ID.Increment {
-			return ErrZeroID
+			return wrapError("save", ErrZeroID)
 		}
 	}
 
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("save", err)
 	}
 
-	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
+	return wrapError("save", n.readWriteTx(ctx, func(tx *bolt.Tx) error {
 		return n.save(ctx, tx, cfg, data, false)
-	})
+	}))
 }
 
 func (n *node) save(ctx context.Context, tx *bolt.Tx, cfg *structConfig, data interface{}, update bool) error {
@@ -391,7 +391,7 @@ func (n *node) save(ctx context.Context, tx *bolt.Tx, cfg *structConfig, data in
 
 // Update a structure
 func (n *node) Update(ctx context.Context, data any) error {
-	return n.update(ctx, data, func(ref *reflect.Value, current *reflect.Value, cfg *structConfig) error {
+	return wrapError("update", n.update(ctx, data, func(ref *reflect.Value, current *reflect.Value, cfg *structConfig) error {
 		numfield := ref.NumField()
 		for i := 0; i < numfield; i++ {
 			if err := checkContext(ctx); err != nil {
@@ -413,12 +413,12 @@ func (n *node) Update(ctx context.Context, data any) error {
 			}
 		}
 		return nil
-	})
+	}))
 }
 
 // UpdateField updates a single field
 func (n *node) UpdateField(ctx context.Context, data any, fieldName string, value any) error {
-	return n.update(ctx, data, func(ref *reflect.Value, current *reflect.Value, cfg *structConfig) error {
+	return wrapError("update field", n.update(ctx, data, func(ref *reflect.Value, current *reflect.Value, cfg *structConfig) error {
 		f := current.FieldByName(fieldName)
 		if !f.IsValid() {
 			return ErrNotFound
@@ -445,7 +445,7 @@ func (n *node) UpdateField(ctx context.Context, data any, fieldName string, valu
 			idxInfo.ForceUpdate = true
 		}
 		return nil
-	})
+	}))
 }
 
 func (n *node) update(ctx context.Context, data interface{}, fn func(*reflect.Value, *reflect.Value, *structConfig) error) error {
@@ -505,7 +505,7 @@ func (n *node) update(ctx context.Context, data interface{}, fn func(*reflect.Va
 // Drop a bucket
 func (n *node) Drop(ctx context.Context, data any) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("drop", err)
 	}
 
 	var bucketName string
@@ -514,7 +514,7 @@ func (n *node) Drop(ctx context.Context, data any) error {
 	if v.Kind() != reflect.String {
 		info, err := extract(&v)
 		if err != nil {
-			return err
+			return wrapError("drop", err)
 		}
 
 		bucketName = info.Name
@@ -523,12 +523,12 @@ func (n *node) Drop(ctx context.Context, data any) error {
 	}
 
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("drop", err)
 	}
 
-	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
+	return wrapError("drop", n.readWriteTx(ctx, func(tx *bolt.Tx) error {
 		return n.drop(ctx, tx, bucketName)
-	})
+	}))
 }
 
 func (n *node) drop(ctx context.Context, tx *bolt.Tx, bucketName string) error {
@@ -552,36 +552,36 @@ func (n *node) drop(ctx context.Context, tx *bolt.Tx, bucketName string) error {
 // DeleteStruct deletes a structure from the associated bucket
 func (n *node) DeleteStruct(ctx context.Context, data any) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("delete struct", err)
 	}
 
 	ref := reflect.ValueOf(data)
 
 	if !ref.IsValid() || ref.Kind() != reflect.Ptr || ref.Elem().Kind() != reflect.Struct {
-		return ErrStructPtrNeeded
+		return wrapError("delete struct", ErrStructPtrNeeded)
 	}
 
 	cfg, err := extract(&ref)
 	if err != nil {
-		return err
+		return wrapError("delete struct", err)
 	}
 
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("delete struct", err)
 	}
 
 	id, err := toBytes(cfg.ID.Value.Interface(), n.codec)
 	if err != nil {
-		return err
+		return wrapError("delete struct", err)
 	}
 
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("delete struct", err)
 	}
 
-	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
+	return wrapError("delete struct", n.readWriteTx(ctx, func(tx *bolt.Tx) error {
 		return n.deleteStruct(ctx, tx, cfg, id)
-	})
+	}))
 }
 
 func (n *node) deleteStruct(ctx context.Context, tx *bolt.Tx, cfg *structConfig, id []byte) error {

@@ -2,6 +2,7 @@ package rainstorm
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/AndersonBargas/rainstorm/v6/index"
 )
@@ -53,3 +54,12 @@ var (
 	// ErrDifferentCodec is returned when using a codec different than the first codec used with the bucket.
 	ErrDifferentCodec = errors.New("the selected codec is incompatible with this bucket")
 )
+
+// wrapError adds operation context to an error while preserving classification.
+// It returns nil when err is nil.
+func wrapError(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("rainstorm %s: %w", operation, err)
+}

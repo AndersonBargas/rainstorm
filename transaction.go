@@ -28,13 +28,13 @@ var _ TransactionManager = (*DB)(nil)
 // not recover panics.
 func (s *DB) ReadTransaction(ctx context.Context, fn func(Node) error) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("read transaction", err)
 	}
 	if fn == nil {
-		return ErrNilParam
+		return wrapError("read transaction", ErrNilParam)
 	}
 
-	return s.bolt.View(func(tx *bolt.Tx) error {
+	return wrapError("read transaction", s.bolt.View(func(tx *bolt.Tx) error {
 		if err := checkContext(ctx); err != nil {
 			return err
 		}
@@ -52,7 +52,7 @@ func (s *DB) ReadTransaction(ctx context.Context, fn func(Node) error) error {
 		}
 
 		return nil
-	})
+	}))
 }
 
 // WriteTransaction executes fn within a writable bbolt transaction.
@@ -71,13 +71,13 @@ func (s *DB) ReadTransaction(ctx context.Context, fn func(Node) error) error {
 // panic are discarded. Rainstorm does not recover panics.
 func (s *DB) WriteTransaction(ctx context.Context, fn func(Node) error) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("write transaction", err)
 	}
 	if fn == nil {
-		return ErrNilParam
+		return wrapError("write transaction", ErrNilParam)
 	}
 
-	return s.bolt.Update(func(tx *bolt.Tx) error {
+	return wrapError("write transaction", s.bolt.Update(func(tx *bolt.Tx) error {
 		if err := checkContext(ctx); err != nil {
 			return err
 		}
@@ -95,7 +95,7 @@ func (s *DB) WriteTransaction(ctx context.Context, fn func(Node) error) error {
 		}
 
 		return nil
-	})
+	}))
 }
 
 // transactionNode builds a transaction-bound node that preserves

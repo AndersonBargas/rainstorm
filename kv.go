@@ -26,16 +26,16 @@ type KeyValueStore interface {
 // GetBytes gets a raw value from a bucket.
 func (n *node) GetBytes(ctx context.Context, bucketName string, key any) ([]byte, error) {
 	if err := checkContext(ctx); err != nil {
-		return nil, err
+		return nil, wrapError("kv get bytes", err)
 	}
 
 	id, err := toBytes(key, n.codec)
 	if err != nil {
-		return nil, err
+		return nil, wrapError("kv get bytes", err)
 	}
 
 	if err := checkContext(ctx); err != nil {
-		return nil, err
+		return nil, wrapError("kv get bytes", err)
 	}
 
 	var val []byte
@@ -58,7 +58,7 @@ func (n *node) GetBytes(ctx context.Context, bucketName string, key any) ([]byte
 		return checkContext(ctx)
 	})
 	if err != nil {
-		return nil, err
+		return nil, wrapError("kv get bytes", err)
 	}
 
 	return val, nil
@@ -88,25 +88,25 @@ func (n *node) getBytes(ctx context.Context, tx *bolt.Tx, bucketName string, id 
 // SetBytes sets a raw value into a bucket.
 func (n *node) SetBytes(ctx context.Context, bucketName string, key any, value []byte) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("kv set bytes", err)
 	}
 
 	if key == nil {
-		return ErrNilParam
+		return wrapError("kv set bytes", ErrNilParam)
 	}
 
 	id, err := toBytes(key, n.codec)
 	if err != nil {
-		return err
+		return wrapError("kv set bytes", err)
 	}
 
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("kv set bytes", err)
 	}
 
-	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
+	return wrapError("kv set bytes", n.readWriteTx(ctx, func(tx *bolt.Tx) error {
 		return n.setBytes(ctx, tx, bucketName, id, value)
-	})
+	}))
 }
 
 func (n *node) setBytes(ctx context.Context, tx *bolt.Tx, bucketName string, id, data []byte) error {
@@ -138,25 +138,25 @@ func (n *node) setBytes(ctx context.Context, tx *bolt.Tx, bucketName string, id,
 // Get a value from a bucket
 func (n *node) Get(ctx context.Context, bucketName string, key any, to any) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("kv get", err)
 	}
 
 	ref := reflect.ValueOf(to)
 
 	if !ref.IsValid() || ref.Kind() != reflect.Ptr {
-		return ErrPtrNeeded
+		return wrapError("kv get", ErrPtrNeeded)
 	}
 
 	id, err := toBytes(key, n.codec)
 	if err != nil {
-		return err
+		return wrapError("kv get", err)
 	}
 
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("kv get", err)
 	}
 
-	return n.readTx(ctx, func(tx *bolt.Tx) error {
+	return wrapError("kv get", n.readTx(ctx, func(tx *bolt.Tx) error {
 		if err := checkContext(ctx); err != nil {
 			return err
 		}
@@ -182,51 +182,51 @@ func (n *node) Get(ctx context.Context, bucketName string, key any, to any) erro
 
 		ref.Elem().Set(temporary.Elem())
 		return nil
-	})
+	}))
 }
 
 // Set a key/value pair into a bucket
 func (n *node) Set(ctx context.Context, bucketName string, key any, value any) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("kv set", err)
 	}
 
 	var data []byte
 	var err error
 	if value != nil {
 		if err := checkContext(ctx); err != nil {
-			return err
+			return wrapError("kv set", err)
 		}
 		data, err = n.codec.Marshal(value)
 		if err != nil {
-			return err
+			return wrapError("kv set", err)
 		}
 		if err := checkContext(ctx); err != nil {
-			return err
+			return wrapError("kv set", err)
 		}
 	}
 
-	return n.SetBytes(ctx, bucketName, key, data)
+	return wrapError("kv set", n.SetBytes(ctx, bucketName, key, data))
 }
 
 // Delete deletes a key from a bucket
 func (n *node) Delete(ctx context.Context, bucketName string, key any) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("kv delete", err)
 	}
 
 	id, err := toBytes(key, n.codec)
 	if err != nil {
-		return err
+		return wrapError("kv delete", err)
 	}
 
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("kv delete", err)
 	}
 
-	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
+	return wrapError("kv delete", n.readWriteTx(ctx, func(tx *bolt.Tx) error {
 		return n.delete(ctx, tx, bucketName, id)
-	})
+	}))
 }
 
 func (n *node) delete(ctx context.Context, tx *bolt.Tx, bucketName string, id []byte) error {
@@ -251,16 +251,16 @@ func (n *node) delete(ctx context.Context, tx *bolt.Tx, bucketName string, id []
 // KeyExists reports the presence of a key in a bucket.
 func (n *node) KeyExists(ctx context.Context, bucketName string, key any) (bool, error) {
 	if err := checkContext(ctx); err != nil {
-		return false, err
+		return false, wrapError("kv key exists", err)
 	}
 
 	id, err := toBytes(key, n.codec)
 	if err != nil {
-		return false, err
+		return false, wrapError("kv key exists", err)
 	}
 
 	if err := checkContext(ctx); err != nil {
-		return false, err
+		return false, wrapError("kv key exists", err)
 	}
 
 	var exists bool
@@ -284,7 +284,7 @@ func (n *node) KeyExists(ctx context.Context, bucketName string, key any) (bool,
 		return nil
 	})
 	if err != nil {
-		return false, err
+		return false, wrapError("kv key exists", err)
 	}
 
 	return exists, nil

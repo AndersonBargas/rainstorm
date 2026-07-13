@@ -30,7 +30,7 @@ var defaultCodec = json.Codec
 // Open opens a database at the given path with optional Rainstorm options.
 func Open(ctx context.Context, path string, rainstormOptions ...OpenOption) (*DB, error) {
 	if err := checkContext(ctx); err != nil {
-		return nil, err
+		return nil, wrapError("open", err)
 	}
 
 	var err error
@@ -38,7 +38,7 @@ func Open(ctx context.Context, path string, rainstormOptions ...OpenOption) (*DB
 	var opts Options
 	for _, option := range rainstormOptions {
 		if err = option(&opts); err != nil {
-			return nil, err
+			return nil, wrapError("open", err)
 		}
 	}
 
@@ -70,7 +70,7 @@ func Open(ctx context.Context, path string, rainstormOptions ...OpenOption) (*DB
 	if s.bolt == nil {
 		s.bolt, err = bolt.Open(path, opts.boltMode, opts.boltOptions)
 		if err != nil {
-			return nil, err
+			return nil, wrapError("open", err)
 		}
 		s.boltOwned = true
 		if opts.postOpenHook != nil {
@@ -81,13 +81,13 @@ func Open(ctx context.Context, path string, rainstormOptions ...OpenOption) (*DB
 	// Re-check the context after the (cooperative) bbolt open.
 	if err = checkContext(ctx); err != nil {
 		s.cleanupOwned()
-		return nil, err
+		return nil, wrapError("open", err)
 	}
 
 	err = s.checkVersion(ctx)
 	if err != nil {
 		s.cleanupOwned()
-		return nil, err
+		return nil, wrapError("open", err)
 	}
 
 	return &s, nil
@@ -144,15 +144,15 @@ func (s *DB) cleanupOwned() {
 // ErrNilParam without panicking.
 func (s *DB) Close() error {
 	if s == nil {
-		return ErrNilParam
+		return wrapError("close", ErrNilParam)
 	}
 	if s.bolt == nil {
-		return ErrNilParam
+		return wrapError("close", ErrNilParam)
 	}
 	if !s.boltOwned {
 		return nil
 	}
-	return s.bolt.Close()
+	return wrapError("close", s.bolt.Close())
 }
 
 func (s *DB) checkVersion(ctx context.Context) error {
