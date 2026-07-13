@@ -107,16 +107,23 @@ func (n *node) readWriteTx(ctx context.Context, fn func(tx *bolt.Tx) error) erro
 		return err
 	}
 
-	if n.tx != nil {
-		return fn(n.tx)
-	}
-
-	return n.s.Bolt.Update(func(tx *bolt.Tx) error {
+	run := func(tx *bolt.Tx) error {
 		if err := checkContext(ctx); err != nil {
 			return err
 		}
-		return fn(tx)
-	})
+
+		if err := fn(tx); err != nil {
+			return err
+		}
+
+		return checkContext(ctx)
+	}
+
+	if n.tx != nil {
+		return run(n.tx)
+	}
+
+	return n.s.Bolt.Update(run)
 }
 
 // Detects if already in transaction or runs a read transaction.

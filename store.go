@@ -47,12 +47,20 @@ func (n *node) Init(ctx context.Context, data any) error {
 		return err
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
-		return n.init(tx, cfg)
+		return n.init(ctx, tx, cfg)
 	})
 }
 
-func (n *node) init(tx *bolt.Tx, cfg *structConfig) error {
+func (n *node) init(ctx context.Context, tx *bolt.Tx, cfg *structConfig) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	bucket, err := n.CreateBucketIfNotExists(tx, cfg.Name)
 	if err != nil {
 		return err
@@ -64,7 +72,14 @@ func (n *node) init(tx *bolt.Tx, cfg *structConfig) error {
 		return err
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	for fieldName, fieldCfg := range cfg.Fields {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
 		if fieldCfg.Index == "" {
 			continue
 		}
@@ -80,6 +95,9 @@ func (n *node) init(tx *bolt.Tx, cfg *structConfig) error {
 		}
 
 		if err != nil {
+			return err
+		}
+		if err := checkContext(ctx); err != nil {
 			return err
 		}
 	}
@@ -171,12 +189,20 @@ func (n *node) Save(ctx context.Context, data any) error {
 		}
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
-		return n.save(tx, cfg, data, false)
+		return n.save(ctx, tx, cfg, data, false)
 	})
 }
 
-func (n *node) save(tx *bolt.Tx, cfg *structConfig, data interface{}, update bool) error {
+func (n *node) save(ctx context.Context, tx *bolt.Tx, cfg *structConfig, data interface{}, update bool) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	bucket, err := n.CreateBucketIfNotExists(tx, cfg.Name)
 	if err != nil {
 		return err
@@ -187,6 +213,9 @@ func (n *node) save(tx *bolt.Tx, cfg *structConfig, data interface{}, update boo
 	if err != nil {
 		return err
 	}
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
 
 	if cfg.ID.IsZero {
 		err = meta.increment(cfg.ID)
@@ -195,15 +224,30 @@ func (n *node) save(tx *bolt.Tx, cfg *structConfig, data interface{}, update boo
 		}
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	id, err := toBytes(cfg.ID.Value.Interface(), n.codec)
 	if err != nil {
 		return err
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	for fieldName, fieldCfg := range cfg.Fields {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		if !update && !fieldCfg.IsID && fieldCfg.Increment && fieldCfg.IsInteger && fieldCfg.IsZero {
 			err = meta.increment(fieldCfg)
 			if err != nil {
+				return err
+			}
+			if err := checkContext(ctx); err != nil {
 				return err
 			}
 		}
@@ -216,6 +260,9 @@ func (n *node) save(tx *bolt.Tx, cfg *structConfig, data interface{}, update boo
 		if err != nil {
 			return err
 		}
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
 
 		if update && fieldCfg.IsZero && !fieldCfg.ForceUpdate {
 			continue
@@ -226,6 +273,9 @@ func (n *node) save(tx *bolt.Tx, cfg *structConfig, data interface{}, update boo
 			if err != nil {
 				return err
 			}
+			if err := checkContext(ctx); err != nil {
+				return err
+			}
 			continue
 		}
 
@@ -234,12 +284,22 @@ func (n *node) save(tx *bolt.Tx, cfg *structConfig, data interface{}, update boo
 			return err
 		}
 
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		var found bool
 		idsSaved, err := idx.All(value, nil)
 		if err != nil {
 			return err
 		}
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
 		for _, idSaved := range idsSaved {
+			if err := checkContext(ctx); err != nil {
+				return err
+			}
 			if bytes.Equal(idSaved, id) {
 				found = true
 				break
@@ -254,6 +314,9 @@ func (n *node) save(tx *bolt.Tx, cfg *structConfig, data interface{}, update boo
 		if err != nil {
 			return err
 		}
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
 
 		err = idx.Add(value, id)
 		if err != nil {
@@ -262,6 +325,13 @@ func (n *node) save(tx *bolt.Tx, cfg *structConfig, data interface{}, update boo
 			}
 			return err
 		}
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	raw, err := n.codec.Marshal(data)
@@ -269,7 +339,14 @@ func (n *node) save(tx *bolt.Tx, cfg *structConfig, data interface{}, update boo
 		return err
 	}
 
-	return bucket.Put(id, raw)
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	if err := bucket.Put(id, raw); err != nil {
+		return err
+	}
+	return checkContext(ctx)
 }
 
 // Update a structure
@@ -277,6 +354,9 @@ func (n *node) Update(ctx context.Context, data any) error {
 	return n.update(ctx, data, func(ref *reflect.Value, current *reflect.Value, cfg *structConfig) error {
 		numfield := ref.NumField()
 		for i := 0; i < numfield; i++ {
+			if err := checkContext(ctx); err != nil {
+				return err
+			}
 			f := ref.Field(i)
 			if ref.Type().Field(i).PkgPath != "" {
 				continue
@@ -311,7 +391,13 @@ func (n *node) UpdateField(ctx context.Context, data any, fieldName string, valu
 		if v.Kind() != f.Kind() {
 			return ErrIncompatibleValue
 		}
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
 		f.Set(v)
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
 		idxInfo, ok := cfg.Fields[fieldName]
 		if ok {
 			idxInfo.Value = &f
@@ -341,11 +427,23 @@ func (n *node) update(ctx context.Context, data interface{}, fn func(*reflect.Va
 		return ErrNoID
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	current := reflect.New(reflect.Indirect(ref).Type())
 
 	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		err = n.WithTransaction(tx).One(ctx, cfg.ID.Name, cfg.ID.Value.Interface(), current.Interface())
 		if err != nil {
+			return err
+		}
+
+		if err := checkContext(ctx); err != nil {
 			return err
 		}
 
@@ -356,7 +454,11 @@ func (n *node) update(ctx context.Context, data interface{}, fn func(*reflect.Va
 			return err
 		}
 
-		return n.save(tx, cfg, current.Interface(), true)
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
+		return n.save(ctx, tx, cfg, current.Interface(), true)
 	})
 }
 
@@ -380,18 +482,31 @@ func (n *node) Drop(ctx context.Context, data any) error {
 		bucketName = v.Interface().(string)
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
-		return n.drop(tx, bucketName)
+		return n.drop(ctx, tx, bucketName)
 	})
 }
 
-func (n *node) drop(tx *bolt.Tx, bucketName string) error {
-	bucket := n.GetBucket(tx)
-	if bucket == nil {
-		return tx.DeleteBucket([]byte(bucketName))
+func (n *node) drop(ctx context.Context, tx *bolt.Tx, bucketName string) error {
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
-	return bucket.DeleteBucket([]byte(bucketName))
+	bucket := n.GetBucket(tx)
+	var err error
+	if bucket == nil {
+		err = tx.DeleteBucket([]byte(bucketName))
+	} else {
+		err = bucket.DeleteBucket([]byte(bucketName))
+	}
+	if err != nil {
+		return err
+	}
+	return checkContext(ctx)
 }
 
 // DeleteStruct deletes a structure from the associated bucket
@@ -411,29 +526,48 @@ func (n *node) DeleteStruct(ctx context.Context, data any) error {
 		return err
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	id, err := toBytes(cfg.ID.Value.Interface(), n.codec)
 	if err != nil {
 		return err
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
-		return n.deleteStruct(tx, cfg, id)
+		return n.deleteStruct(ctx, tx, cfg, id)
 	})
 }
 
-func (n *node) deleteStruct(tx *bolt.Tx, cfg *structConfig, id []byte) error {
+func (n *node) deleteStruct(ctx context.Context, tx *bolt.Tx, cfg *structConfig, id []byte) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	bucket := n.GetBucket(tx, cfg.Name)
 	if bucket == nil {
 		return ErrNotFound
 	}
 
 	for fieldName, fieldCfg := range cfg.Fields {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		if fieldCfg.Index == "" {
 			continue
 		}
 
 		idx, err := getIndex(bucket, fieldCfg.Index, fieldName)
 		if err != nil {
+			return err
+		}
+		if err := checkContext(ctx); err != nil {
 			return err
 		}
 
@@ -444,6 +578,13 @@ func (n *node) deleteStruct(tx *bolt.Tx, cfg *structConfig, id []byte) error {
 			}
 			return err
 		}
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	raw := bucket.Get(id)
@@ -451,5 +592,12 @@ func (n *node) deleteStruct(tx *bolt.Tx, cfg *structConfig, id []byte) error {
 		return ErrNotFound
 	}
 
-	return bucket.Delete(id)
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	if err := bucket.Delete(id); err != nil {
+		return err
+	}
+	return checkContext(ctx)
 }
