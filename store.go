@@ -269,7 +269,7 @@ func (n *node) save(ctx context.Context, tx *bolt.Tx, cfg *structConfig, data in
 		}
 
 		if fieldCfg.IsZero {
-			err = idx.RemoveID(id)
+			err = idx.RemoveID(ctx, id)
 			if err != nil {
 				return err
 			}
@@ -289,7 +289,7 @@ func (n *node) save(ctx context.Context, tx *bolt.Tx, cfg *structConfig, data in
 		}
 
 		var found bool
-		idsSaved, err := idx.All(value, nil)
+		idsSaved, err := idx.All(ctx, value, nil)
 		if err != nil {
 			return err
 		}
@@ -310,7 +310,7 @@ func (n *node) save(ctx context.Context, tx *bolt.Tx, cfg *structConfig, data in
 			continue
 		}
 
-		err = idx.RemoveID(id)
+		err = idx.RemoveID(ctx, id)
 		if err != nil {
 			return err
 		}
@@ -318,7 +318,7 @@ func (n *node) save(ctx context.Context, tx *bolt.Tx, cfg *structConfig, data in
 			return err
 		}
 
-		err = idx.Add(value, id)
+		err = idx.Add(ctx, value, id)
 		if err != nil {
 			if err == index.ErrAlreadyExists {
 				return ErrAlreadyExists
@@ -571,7 +571,7 @@ func (n *node) deleteStruct(ctx context.Context, tx *bolt.Tx, cfg *structConfig,
 			return err
 		}
 
-		err = idx.RemoveID(id)
+		err = idx.RemoveID(ctx, id)
 		if err != nil {
 			if err == index.ErrNotFound {
 				return ErrNotFound

@@ -1,6 +1,7 @@
 package rainstorm
 
 import (
+	"context"
 	"reflect"
 	"sort"
 	"time"
@@ -41,7 +42,7 @@ type sorter struct {
 	done    chan struct{}
 }
 
-func (s *sorter) filter(tree q.Matcher, bucket *bolt.Bucket, k, v []byte) (bool, error) {
+func (s *sorter) filter(ctx context.Context, tree q.Matcher, bucket *bolt.Bucket, k, v []byte) (bool, error) {
 	itm := &item{
 		bucket: bucket,
 		k:      k,
@@ -49,7 +50,7 @@ func (s *sorter) filter(tree q.Matcher, bucket *bolt.Bucket, k, v []byte) (bool,
 	}
 	rsink, ok := s.sink.(reflectSink)
 	if !ok {
-		return s.add(itm)
+		return s.add(ctx, itm)
 	}
 
 	newElem := rsink.elem()
@@ -69,12 +70,12 @@ func (s *sorter) filter(tree q.Matcher, bucket *bolt.Bucket, k, v []byte) (bool,
 	}
 
 	if len(s.orderBy) == 0 {
-		return s.add(itm)
+		return s.add(ctx, itm)
 	}
 
 	if _, ok := s.sink.(sliceSink); ok {
 		// add directly to sink, we'll apply skip/limits after sorting
-		return false, s.sink.add(itm)
+		return false, s.sink.add(ctx, itm)
 	}
 
 	s.list = append(s.list, itm)
@@ -82,7 +83,7 @@ func (s *sorter) filter(tree q.Matcher, bucket *bolt.Bucket, k, v []byte) (bool,
 	return false, nil
 }
 
-func (s *sorter) add(itm *item) (stop bool, err error) {
+func (s *sorter) add(ctx context.Context, itm *item) (bool, error) {
 	if s.limit == 0 {
 		return true, nil
 	}
@@ -96,7 +97,7 @@ func (s *sorter) add(itm *item) (stop bool, err error) {
 		s.limit--
 	}
 
-	err = s.sink.add(itm)
+	err := s.sink.add(ctx, itm)
 
 	return s.limit == 0, err
 }
@@ -206,7 +207,7 @@ func (s *sorter) less(leftElem reflect.Value, rightElem reflect.Value) bool {
 	return false
 }
 
-func (s *sorter) flush() error {
+func (s *sorter) flush(ctx context.Context) error {
 	if len(s.orderBy) == 0 {
 		return s.sink.flush()
 	}
@@ -251,7 +252,7 @@ func (s *sorter) flush() error {
 		if itm == nil {
 			break
 		}
-		stop, err := s.add(itm)
+		stop, err := s.add(ctx, itm)
 		if err != nil {
 			return err
 		}
@@ -294,7 +295,7 @@ func (s *sorter) Less(i, j int) bool {
 type sink interface {
 	bucketName() string
 	flush() error
-	add(*item) error
+	add(ctx context.Context, i *item) error
 	readOnly() bool
 }
 
@@ -404,7 +405,7 @@ func (l *listSink) bucketName() string {
 	return l.name
 }
 
-func (l *listSink) add(i *item) error {
+func (l *listSink) add(ctx context.Context, i *item) error {
 	if l.idx == l.results.Len() {
 		if l.isPtr {
 			l.results = reflect.Append(l.results, *i.value)
@@ -464,7 +465,7 @@ func (f *firstSink) bucketName() string {
 	return v.Type().Name()
 }
 
-func (f *firstSink) add(i *item) error {
+func (f *firstSink) add(ctx context.Context, i *item) error {
 	reflect.Indirect(f.ref).Set(i.value.Elem())
 	f.found = true
 	return nil
@@ -509,7 +510,7 @@ func (d *deleteSink) bucketName() string {
 	return bucketName(d.ref.Interface())
 }
 
-func (d *deleteSink) add(i *item) error {
+func (d *deleteSink) add(ctx context.Context, i *item) error {
 	info, err := extract(&d.ref)
 	if err != nil {
 		return err
@@ -524,7 +525,7 @@ func (d *deleteSink) add(i *item) error {
 			return err
 		}
 
-		err = idx.RemoveID(i.k)
+		err = idx.RemoveID(ctx, i.k)
 		if err != nil {
 			if err == index.ErrNotFound {
 				return ErrNotFound
@@ -576,7 +577,7 @@ func (c *countSink) bucketName() string {
 	return bucketName(c.ref.Interface())
 }
 
-func (c *countSink) add(i *item) error {
+func (c *countSink) add(ctx context.Context, i *item) error {
 	c.counter++
 	return nil
 }
@@ -598,7 +599,7 @@ type rawSink struct {
 	execFn  func([]byte, []byte) error
 }
 
-func (r *rawSink) add(i *item) error {
+func (r *rawSink) add(ctx context.Context, i *item) error {
 	if r.execFn != nil {
 		err := r.execFn(i.k, i.v)
 		if err != nil {
@@ -648,7 +649,7 @@ func (e *eachSink) bucketName() string {
 	return bucketName(e.ref.Interface())
 }
 
-func (e *eachSink) add(i *item) error {
+func (e *eachSink) add(ctx context.Context, i *item) error {
 	return e.execFn(i.value.Interface())
 }
 

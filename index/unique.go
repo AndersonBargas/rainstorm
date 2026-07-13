@@ -2,6 +2,7 @@ package index
 
 import (
 	"bytes"
+	"context"
 
 	"github.com/AndersonBargas/rainstorm/v6/internal"
 	bolt "go.etcd.io/bbolt"
@@ -34,7 +35,10 @@ type UniqueIndex struct {
 }
 
 // Add a value to the unique index
-func (idx *UniqueIndex) Add(value []byte, targetID []byte) error {
+func (idx *UniqueIndex) Add(ctx context.Context, value []byte, targetID []byte) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
 	if value == nil || len(value) == 0 {
 		return ErrNilParam
 	}
@@ -50,34 +54,74 @@ func (idx *UniqueIndex) Add(value []byte, targetID []byte) error {
 		return ErrAlreadyExists
 	}
 
-	return idx.IndexBucket.Put(value, targetID)
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	if err := idx.IndexBucket.Put(value, targetID); err != nil {
+		return err
+	}
+
+	return checkContext(ctx)
 }
 
 // Remove a value from the unique index
-func (idx *UniqueIndex) Remove(value []byte) error {
-	return idx.IndexBucket.Delete(value)
+func (idx *UniqueIndex) Remove(ctx context.Context, value []byte) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	if err := idx.IndexBucket.Delete(value); err != nil {
+		return err
+	}
+
+	return checkContext(ctx)
 }
 
 // RemoveID removes an ID from the unique index
-func (idx *UniqueIndex) RemoveID(id []byte) error {
+func (idx *UniqueIndex) RemoveID(ctx context.Context, id []byte) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	c := idx.IndexBucket.Cursor()
 
 	for val, ident := c.First(); val != nil; val, ident = c.Next() {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
 		if bytes.Equal(ident, id) {
-			return idx.Remove(val)
+			return idx.Remove(ctx, val)
 		}
 	}
-	return nil
+	return checkContext(ctx)
 }
 
 // Get the id corresponding to the given value
-func (idx *UniqueIndex) Get(value []byte) []byte {
-	return idx.IndexBucket.Get(value)
+func (idx *UniqueIndex) Get(ctx context.Context, value []byte) ([]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
+
+	raw := idx.IndexBucket.Get(value)
+
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
+
+	return raw, nil
 }
 
 // All returns all the ids corresponding to the given value
-func (idx *UniqueIndex) All(value []byte, opts *Options) ([][]byte, error) {
+func (idx *UniqueIndex) All(ctx context.Context, value []byte, opts *Options) ([][]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
+
 	id := idx.IndexBucket.Get(value)
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
 	if id != nil {
 		return [][]byte{id}, nil
 	}
@@ -86,12 +130,20 @@ func (idx *UniqueIndex) All(value []byte, opts *Options) ([][]byte, error) {
 }
 
 // AllRecords returns all the IDs of this index
-func (idx *UniqueIndex) AllRecords(opts *Options) ([][]byte, error) {
+func (idx *UniqueIndex) AllRecords(ctx context.Context, opts *Options) ([][]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
+
 	var list [][]byte
 
 	c := internal.Cursor{C: idx.IndexBucket.Cursor(), Reverse: opts != nil && opts.Reverse}
 
 	for val, ident := c.First(); val != nil; val, ident = c.Next() {
+		if err := checkContext(ctx); err != nil {
+			return nil, err
+		}
+
 		if opts != nil && opts.Skip > 0 {
 			opts.Skip--
 			continue
@@ -107,11 +159,20 @@ func (idx *UniqueIndex) AllRecords(opts *Options) ([][]byte, error) {
 
 		list = append(list, ident)
 	}
+
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
+
 	return list, nil
 }
 
 // Range returns the ids corresponding to the given range of values
-func (idx *UniqueIndex) Range(min []byte, max []byte, opts *Options) ([][]byte, error) {
+func (idx *UniqueIndex) Range(ctx context.Context, min []byte, max []byte, opts *Options) ([][]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
+
 	var list [][]byte
 
 	c := internal.RangeCursor{
@@ -125,6 +186,10 @@ func (idx *UniqueIndex) Range(min []byte, max []byte, opts *Options) ([][]byte, 
 	}
 
 	for val, ident := c.First(); val != nil && c.Continue(val); val, ident = c.Next() {
+		if err := checkContext(ctx); err != nil {
+			return nil, err
+		}
+
 		if opts != nil && opts.Skip > 0 {
 			opts.Skip--
 			continue
@@ -140,11 +205,20 @@ func (idx *UniqueIndex) Range(min []byte, max []byte, opts *Options) ([][]byte, 
 
 		list = append(list, ident)
 	}
+
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
+
 	return list, nil
 }
 
 // Prefix returns the ids whose values have the given prefix.
-func (idx *UniqueIndex) Prefix(prefix []byte, opts *Options) ([][]byte, error) {
+func (idx *UniqueIndex) Prefix(ctx context.Context, prefix []byte, opts *Options) ([][]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
+
 	var list [][]byte
 
 	c := internal.PrefixCursor{
@@ -154,6 +228,10 @@ func (idx *UniqueIndex) Prefix(prefix []byte, opts *Options) ([][]byte, error) {
 	}
 
 	for val, ident := c.First(); val != nil && c.Continue(val); val, ident = c.Next() {
+		if err := checkContext(ctx); err != nil {
+			return nil, err
+		}
+
 		if opts != nil && opts.Skip > 0 {
 			opts.Skip--
 			continue
@@ -169,5 +247,10 @@ func (idx *UniqueIndex) Prefix(prefix []byte, opts *Options) ([][]byte, error) {
 
 		list = append(list, ident)
 	}
+
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
+
 	return list, nil
 }

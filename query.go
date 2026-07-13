@@ -203,25 +203,25 @@ func (q *query) runQuery(ctx context.Context, sink sink) error {
 	}
 
 	if q.node.tx != nil {
-		return q.query(q.node.tx, sink)
+		return q.query(ctx, q.node.tx, sink)
 	}
 	if sink.readOnly() {
 		return q.node.s.Bolt.View(func(tx *bolt.Tx) error {
 			if err := checkContext(ctx); err != nil {
 				return err
 			}
-			return q.query(tx, sink)
+			return q.query(ctx, tx, sink)
 		})
 	}
 	return q.node.s.Bolt.Update(func(tx *bolt.Tx) error {
 		if err := checkContext(ctx); err != nil {
 			return err
 		}
-		return q.query(tx, sink)
+		return q.query(ctx, tx, sink)
 	})
 }
 
-func (q *query) query(tx *bolt.Tx, sink sink) error {
+func (q *query) query(ctx context.Context, tx *bolt.Tx, sink sink) error {
 	bucketName := q.bucket
 	if bucketName == "" {
 		bucketName = sink.bucketName()
@@ -248,7 +248,7 @@ func (q *query) query(tx *bolt.Tx, sink sink) error {
 				continue
 			}
 
-			stop, err := sorter.filter(q.tree, bucket, k, v)
+			stop, err := sorter.filter(ctx, q.tree, bucket, k, v)
 			if err != nil {
 				return err
 			}
@@ -259,5 +259,5 @@ func (q *query) query(tx *bolt.Tx, sink sink) error {
 		}
 	}
 
-	return sorter.flush()
+	return sorter.flush(ctx)
 }

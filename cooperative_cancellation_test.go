@@ -64,7 +64,7 @@ func (c *cancellationCodec) setOnUnmarshal(fn func()) {
 // 17.1 Save cancelled during marshal
 // ---------------------------------------------------------------------------
 
-func TestSave_CancellationDuringMarshalRollsBackRecordAndIndexes(t *testing.T) {
+func TestSave_IndexCancellationRollsBackTransaction(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
@@ -75,6 +75,9 @@ func TestSave_CancellationDuringMarshalRollsBackRecordAndIndexes(t *testing.T) {
 
 	n := db.WithCodec(cc).(*node)
 
+	// Save updates all configured indexes before marshaling the final record.
+	// Canceling in Marshal therefore proves that the enclosing transaction rolls
+	// back both the already-applied index changes and the record write.
 	err := n.Save(ctx, &UniqueNameUser{ID: 1, Name: "unique-marshal-cancel", Age: 10})
 	require.True(t, errors.Is(err, context.Canceled), "expected Canceled, got %v", err)
 
