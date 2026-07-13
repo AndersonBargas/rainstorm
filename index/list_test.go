@@ -21,7 +21,7 @@ func TestListIndex(t *testing.T) {
 	db, _ := rainstorm.Open(context.Background(), filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	err := db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -170,7 +170,7 @@ func TestListIndexReverse(t *testing.T) {
 	db, _ := rainstorm.Open(context.Background(), filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	err := db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -215,7 +215,7 @@ func TestListIndexAddRemoveID(t *testing.T) {
 	db, _ := rainstorm.Open(context.Background(), filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -259,7 +259,7 @@ func TestListIndexAllRecords(t *testing.T) {
 	db, _ := rainstorm.Open(context.Background(), filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -338,7 +338,7 @@ func TestListIndexRange(t *testing.T) {
 	db, _ := rainstorm.Open(context.Background(), filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -434,7 +434,7 @@ func TestListIndexPrefix(t *testing.T) {
 	db, _ := rainstorm.Open(context.Background(), filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 

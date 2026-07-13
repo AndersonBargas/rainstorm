@@ -168,7 +168,7 @@ func TestIDIndexParams(t *testing.T) {
 	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	err := db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -208,7 +208,7 @@ func TestIDIndexParams(t *testing.T) {
 	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	err := db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -314,7 +314,7 @@ func TestIDIndexRange(t *testing.T) {
 	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -387,7 +387,7 @@ func TestIDIndexPrefix(t *testing.T) {
 	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 

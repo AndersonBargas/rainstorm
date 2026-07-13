@@ -409,7 +409,7 @@ func TestDynamicStructInit(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify bucket exists
-	err = db.Bolt.View(func(tx *bolt.Tx) error {
+	err = db.NativeDB().View(func(tx *bolt.Tx) error {
 		b := db.Node.(*node).getBucket(tx, bucketName)
 		require.NotNil(t, b)
 
@@ -540,7 +540,7 @@ func TestBucketNamerDrop(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify bucket is gone
-	err = db.Bolt.View(func(tx *bolt.Tx) error {
+	err = db.NativeDB().View(func(tx *bolt.Tx) error {
 		b := db.Node.(*node).getBucket(tx, "drop_me")
 		require.Nil(t, b)
 		return nil

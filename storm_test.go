@@ -37,7 +37,7 @@ func TestNewStorm(t *testing.T) {
 	require.Implements(t, (*Node)(nil), db)
 
 	require.NoError(t, err)
-	require.NotNil(t, db.Bolt)
+	require.NotNil(t, db.NativeDB())
 	require.Equal(t, defaultCodec, db.Codec())
 
 	var v string

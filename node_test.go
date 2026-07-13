@@ -34,7 +34,7 @@ func TestNodeWithTransaction(t *testing.T) {
 	ctx := context.Background()
 
 	var user User
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.NativeDB().Update(func(tx *bolt.Tx) error {
 		dbx := db.Node.(*node).withTransaction(tx)
 		err := dbx.Save(ctx, &User{ID: 10, Name: "John"})
 		require.NoError(t, err)

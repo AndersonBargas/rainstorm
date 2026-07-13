@@ -114,7 +114,7 @@ func TestIndexes_CancelledContextRejected(t *testing.T) {
 
 	cancelled := newStepContext(0)
 
-	err := td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := createBucket(t, tx, "test")
 
 		for _, tc := range []struct {
@@ -187,7 +187,7 @@ func TestIDIndex_RangeCancellationDiscardsPartialResults(t *testing.T) {
 	defer td.cleanup(t)
 
 	ctx := context.Background()
-	err := td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := createBucket(t, tx, "test")
 		// IDIndex.Add is a no-op; write keys directly to the bucket.
 		for i := 0; i < 20; i++ {
@@ -221,7 +221,7 @@ func TestIDIndex_PrefixCancellationDiscardsPartialResults(t *testing.T) {
 	defer td.cleanup(t)
 
 	ctx := context.Background()
-	err := td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := createBucket(t, tx, "test")
 		for i := 0; i < 20; i++ {
 			val := []byte(fmt.Sprintf("a%d", i))
@@ -257,7 +257,7 @@ func TestListIndex_AllCancellationDiscardsPartialResults(t *testing.T) {
 	defer td.cleanup(t)
 
 	ctx := context.Background()
-	err := td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := createBucket(t, tx, "test")
 		idx := newListIndex(t, b, "li")
 		for i := 0; i < 10; i++ {
@@ -289,7 +289,7 @@ func TestListIndex_RemoveCancellationReturnsError(t *testing.T) {
 	defer td.cleanup(t)
 
 	ctx := context.Background()
-	require.NoError(t, td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	require.NoError(t, td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := createBucket(t, tx, "test")
 		idx := newListIndex(t, b, "li")
 		for i := 0; i < 5; i++ {
@@ -300,7 +300,7 @@ func TestListIndex_RemoveCancellationReturnsError(t *testing.T) {
 
 	// cancelAt=4: entry (1), 2 cursor keys (2,3), first delete check (4) → cancel.
 	sc := newStepContext(4)
-	err := td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("test"))
 		idx := newListIndex(t, b, "li")
 		return idx.Remove(sc, []byte("hello"))
@@ -308,7 +308,7 @@ func TestListIndex_RemoveCancellationReturnsError(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 
 	// Bolt.Update already rolled back. Verify original state.
-	require.NoError(t, td.db.Bolt.View(func(tx *bolt.Tx) error {
+	require.NoError(t, td.db.NativeDB().View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("test"))
 		idx := newListIndex(t, b, "li")
 		result, err := idx.All(ctx, []byte("hello"), nil)
@@ -323,7 +323,7 @@ func TestListIndex_RangeCancellationDiscardsPartialResults(t *testing.T) {
 	defer td.cleanup(t)
 
 	ctx := context.Background()
-	err := td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := createBucket(t, tx, "test")
 		idx := newListIndex(t, b, "li")
 		for i := 0; i < 10; i++ {
@@ -355,7 +355,7 @@ func TestListIndex_PrefixCancellationDiscardsPartialResults(t *testing.T) {
 	defer td.cleanup(t)
 
 	ctx := context.Background()
-	err := td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := createBucket(t, tx, "test")
 		idx := newListIndex(t, b, "li")
 		for i := 0; i < 10; i++ {
@@ -390,7 +390,7 @@ func TestUniqueIndex_AllRecordsCancellationDiscardsPartialResults(t *testing.T) 
 	defer td.cleanup(t)
 
 	ctx := context.Background()
-	err := td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := createBucket(t, tx, "test")
 		idx := newUniqueIndex(t, b, "ui")
 		for i := 0; i < 10; i++ {
@@ -422,7 +422,7 @@ func TestUniqueIndex_RangeCancellationDiscardsPartialResults(t *testing.T) {
 	defer td.cleanup(t)
 
 	ctx := context.Background()
-	err := td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := createBucket(t, tx, "test")
 		idx := newUniqueIndex(t, b, "ui")
 		for i := 0; i < 10; i++ {
@@ -453,7 +453,7 @@ func TestUniqueIndex_PrefixCancellationDiscardsPartialResults(t *testing.T) {
 	defer td.cleanup(t)
 
 	ctx := context.Background()
-	err := td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := createBucket(t, tx, "test")
 		idx := newUniqueIndex(t, b, "ui")
 		for i := 0; i < 10; i++ {
@@ -491,7 +491,7 @@ func TestMutation_UniqueAddCancellationRollsBack(t *testing.T) {
 
 	// UniqueIndex.Add checks: entry (1), pre-Put (2), Put, post-Put (3).
 	sc := newStepContext(3)
-	err := td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := createBucket(t, tx, "test")
 		idx := newUniqueIndex(t, b, "ui")
 		return idx.Add(sc, []byte("val"), []byte("id1"))
@@ -499,7 +499,7 @@ func TestMutation_UniqueAddCancellationRollsBack(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 
 	// Confirm nothing persisted (Bolt.Update rolled back).
-	require.NoError(t, td.db.Bolt.View(func(tx *bolt.Tx) error {
+	require.NoError(t, td.db.NativeDB().View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("test"))
 		if b == nil {
 			return nil
@@ -517,7 +517,7 @@ func TestMutation_UniqueRemoveCancellationRollsBack(t *testing.T) {
 	defer td.cleanup(t)
 
 	ctx := context.Background()
-	require.NoError(t, td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	require.NoError(t, td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := createBucket(t, tx, "test")
 		idx := newUniqueIndex(t, b, "ui")
 		return idx.Add(ctx, []byte("val"), []byte("id1"))
@@ -525,14 +525,14 @@ func TestMutation_UniqueRemoveCancellationRollsBack(t *testing.T) {
 
 	// UniqueIndex.Remove checks: entry (1), Delete, post-Delete (2).
 	sc := newStepContext(2)
-	err := td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("test"))
 		idx := newUniqueIndex(t, b, "ui")
 		return idx.Remove(sc, []byte("val"))
 	})
 	require.ErrorIs(t, err, context.Canceled)
 
-	require.NoError(t, td.db.Bolt.View(func(tx *bolt.Tx) error {
+	require.NoError(t, td.db.NativeDB().View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("test"))
 		idx := newUniqueIndex(t, b, "ui")
 		id, err := idx.Get(ctx, []byte("val"))
@@ -547,7 +547,7 @@ func TestMutation_UniqueRemoveIDCancellationRollsBack(t *testing.T) {
 	defer td.cleanup(t)
 
 	ctx := context.Background()
-	require.NoError(t, td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	require.NoError(t, td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := createBucket(t, tx, "test")
 		idx := newUniqueIndex(t, b, "ui")
 		return idx.Add(ctx, []byte("val"), []byte("id1"))
@@ -557,14 +557,14 @@ func TestMutation_UniqueRemoveIDCancellationRollsBack(t *testing.T) {
 	// Seed has 1 entry. Entry check (1), first iteration check (2).
 	// cancelAt=2 cancels during first iteration before comparison.
 	sc := newStepContext(2)
-	err := td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("test"))
 		idx := newUniqueIndex(t, b, "ui")
 		return idx.RemoveID(sc, []byte("id1"))
 	})
 	require.ErrorIs(t, err, context.Canceled)
 
-	require.NoError(t, td.db.Bolt.View(func(tx *bolt.Tx) error {
+	require.NoError(t, td.db.NativeDB().View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("test"))
 		idx := newUniqueIndex(t, b, "ui")
 		id, err := idx.Get(ctx, []byte("val"))
@@ -583,14 +583,14 @@ func TestMutation_ListAddCancellationRollsBack(t *testing.T) {
 	// ListIndex.Add with no existing key: entry (1), post-IDs.Get (2), skip delete,
 	// post-IDs.Add (3), post-Put (4).  cancelAt=4 cancels after Put succeeds.
 	sc := newStepContext(4)
-	err := td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := createBucket(t, tx, "test")
 		idx := newListIndex(t, b, "li")
 		return idx.Add(sc, []byte("val"), []byte("id1"))
 	})
 	require.ErrorIs(t, err, context.Canceled)
 
-	require.NoError(t, td.db.Bolt.View(func(tx *bolt.Tx) error {
+	require.NoError(t, td.db.NativeDB().View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("test"))
 		if b == nil {
 			return nil
@@ -608,7 +608,7 @@ func TestMutation_ListRemoveCancellationRollsBack(t *testing.T) {
 	defer td.cleanup(t)
 
 	ctx := context.Background()
-	require.NoError(t, td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	require.NoError(t, td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := createBucket(t, tx, "test")
 		idx := newListIndex(t, b, "li")
 		for i := 0; i < 3; i++ {
@@ -620,14 +620,14 @@ func TestMutation_ListRemoveCancellationRollsBack(t *testing.T) {
 	// cancelAt=6: entry (1), 3 cursor iterations (2-4), pre-Delete (5),
 	// first Delete, post-Delete (6) → cancel after one mutation.
 	sc := newStepContext(6)
-	err := td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("test"))
 		idx := newListIndex(t, b, "li")
 		return idx.Remove(sc, []byte("hello"))
 	})
 	require.ErrorIs(t, err, context.Canceled)
 
-	require.NoError(t, td.db.Bolt.View(func(tx *bolt.Tx) error {
+	require.NoError(t, td.db.NativeDB().View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("test"))
 		idx := newListIndex(t, b, "li")
 		result, err := idx.All(ctx, []byte("hello"), nil)
@@ -642,7 +642,7 @@ func TestMutation_ListRemoveIDCancellationRollsBack(t *testing.T) {
 	defer td.cleanup(t)
 
 	ctx := context.Background()
-	require.NoError(t, td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	require.NoError(t, td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := createBucket(t, tx, "test")
 		idx := newListIndex(t, b, "li")
 		return idx.Add(ctx, []byte("hello"), []byte("id1"))
@@ -651,14 +651,14 @@ func TestMutation_ListRemoveIDCancellationRollsBack(t *testing.T) {
 	// ListIndex.RemoveID checks: entry (1), IDs.Get entry/post-Get (2,3),
 	// pre-Delete (4), Delete, post-Delete (5) → cancel after the mutation.
 	sc := newStepContext(5)
-	err := td.db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := td.db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("test"))
 		idx := newListIndex(t, b, "li")
 		return idx.RemoveID(sc, []byte("id1"))
 	})
 	require.ErrorIs(t, err, context.Canceled)
 
-	require.NoError(t, td.db.Bolt.View(func(tx *bolt.Tx) error {
+	require.NoError(t, td.db.NativeDB().View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("test"))
 		idx := newListIndex(t, b, "li")
 		result, err := idx.All(ctx, []byte("hello"), nil)
@@ -679,7 +679,7 @@ func callView(
 ) ([][]byte, error) {
 	var result [][]byte
 	var resultErr error
-	err := db.Bolt.View(func(tx *bolt.Tx) error {
+	err := db.NativeDB().View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucketName))
 		idx, err := buildIndex(b, indexName)
 		if err != nil {

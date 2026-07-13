@@ -11,7 +11,7 @@ func TestBucket(t *testing.T) {
 	defer cleanup()
 
 	// Read tx
-	readTx, err := db.Bolt.Begin(false)
+	readTx, err := db.NativeDB().Begin(false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestBucket(t *testing.T) {
 	// End read tx
 
 	// Write tx
-	writeTx, err := db.Bolt.Begin(true)
+	writeTx, err := db.NativeDB().Begin(true)
 
 	if err != nil {
 		t.Fatal(err)
@@ -54,7 +54,7 @@ func TestBucket(t *testing.T) {
 	// End write tx
 
 	// Read tx
-	readTx, err = db.Bolt.Begin(false)
+	readTx, err = db.NativeDB().Begin(false)
 	if err != nil {
 		t.Fatal(err)
 	}

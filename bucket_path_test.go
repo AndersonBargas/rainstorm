@@ -127,7 +127,7 @@ func TestBucketHelpers_DoNotMutateNodePath(t *testing.T) {
 	require.Equal(t, original, node.rootBucket)
 
 	// Use a real bbolt write transaction.
-	writeTx, err := db.Bolt.Begin(true)
+	writeTx, err := db.NativeDB().Begin(true)
 	require.NoError(t, err)
 
 	// createBucketIfNotExists
@@ -193,7 +193,7 @@ func TestNodePath_ExcessCapacity_CreateBucketIfNotExists(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
-	writeTx, err := db.Bolt.Begin(true)
+	writeTx, err := db.NativeDB().Begin(true)
 	require.NoError(t, err)
 
 	_, err = n.createBucketIfNotExists(writeTx, "users")
@@ -221,7 +221,7 @@ func TestNodePath_ExcessCapacity_GetBucket(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
-	writeTx, err := db.Bolt.Begin(true)
+	writeTx, err := db.NativeDB().Begin(true)
 	require.NoError(t, err)
 
 	// First create the bucket so that getBucket can find it.

@@ -83,7 +83,7 @@ func TestReIndex(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	db.Bolt.View(func(tx *bolt.Tx) error {
+	db.NativeDB().View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte("User"))
 		require.NotNil(t, bucket)
 
@@ -101,7 +101,7 @@ func TestReIndex(t *testing.T) {
 
 	require.NoError(t, db.ReIndex(ctx, new(User)))
 
-	db.Bolt.View(func(tx *bolt.Tx) error {
+	db.NativeDB().View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte("User"))
 		require.NotNil(t, bucket)
 
@@ -153,7 +153,7 @@ func TestSave(t *testing.T) {
 	err = db.Save(ctx, &w)
 	require.NoError(t, err)
 
-	db.Bolt.View(func(tx *bolt.Tx) error {
+	db.NativeDB().View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte("UserWithIDField"))
 		require.NotNil(t, bucket)
 
@@ -190,7 +190,7 @@ func TestSaveUnique(t *testing.T) {
 	err = db.Save(ctx, &u3)
 	require.NoError(t, err)
 
-	db.Bolt.View(func(tx *bolt.Tx) error {
+	db.NativeDB().View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte("UniqueNameUser"))
 
 		uniqueBucket := bucket.Bucket([]byte(indexPrefix + "Name"))
@@ -637,7 +637,7 @@ func TestDropByString(t *testing.T) {
 	err = db.Drop(ctx, "b1")
 	require.NoError(t, err)
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.NativeDB().Update(func(tx *bolt.Tx) error {
 		require.Nil(t, db.From().(*node).getBucket(tx, "b1"))
 		d := db.Node.(*node).withTransaction(tx)
 		n := d.From("a1")
@@ -664,7 +664,7 @@ func TestDropByStruct(t *testing.T) {
 	err = n.Drop(ctx, &SimpleUser{})
 	require.NoError(t, err)
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.NativeDB().Update(func(tx *bolt.Tx) error {
 		require.Nil(t, n.(*node).getBucket(tx, "SimpleUser"))
 		d := db.Node.(*node).withTransaction(tx)
 		n := d.From("a1")

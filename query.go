@@ -229,7 +229,7 @@ func (q *query) runQuery(ctx context.Context, sink sink) error {
 		return checkContext(ctx)
 	}
 	if sink.readOnly() {
-		return q.node.s.Bolt.View(func(tx *bolt.Tx) error {
+		return q.node.s.bolt.View(func(tx *bolt.Tx) error {
 			if err := checkContext(ctx); err != nil {
 				return err
 			}
@@ -237,7 +237,7 @@ func (q *query) runQuery(ctx context.Context, sink sink) error {
 			return q.query(ctx, tx, sink)
 		})
 	}
-	return q.node.s.Bolt.Update(func(tx *bolt.Tx) error {
+	return q.node.s.bolt.Update(func(tx *bolt.Tx) error {
 		if err := checkContext(ctx); err != nil {
 			return err
 		}

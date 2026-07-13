@@ -153,7 +153,7 @@ func TestStructOps_CancelledContextPreventsWork(t *testing.T) {
 				return db.Init(ctx, &IndexedNameUser{})
 			},
 			verifyNoPersist: func(t *testing.T) {
-				err := db.Bolt.View(func(tx *bolt.Tx) error {
+				err := db.NativeDB().View(func(tx *bolt.Tx) error {
 					require.Nil(t, tx.Bucket([]byte("IndexedNameUser")))
 					return nil
 				})

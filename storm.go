@@ -42,7 +42,7 @@ func Open(ctx context.Context, path string, rainstormOptions ...OpenOption) (*DB
 	}
 
 	s := DB{
-		Bolt: opts.bolt,
+		bolt: opts.bolt,
 	}
 
 	n := node{
@@ -66,8 +66,8 @@ func Open(ctx context.Context, path string, rainstormOptions ...OpenOption) (*DB
 	s.Node = &n
 
 	// skip if UseDB option is used
-	if s.Bolt == nil {
-		s.Bolt, err = bolt.Open(path, opts.boltMode, opts.boltOptions)
+	if s.bolt == nil {
+		s.bolt, err = bolt.Open(path, opts.boltMode, opts.boltOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -98,26 +98,60 @@ type DB struct {
 	// The root node that points to the root bucket.
 	Node
 
-	// Bolt is still easily accessible
-	Bolt *bolt.DB
+	// bolt is the underlying bbolt database.
+	bolt *bolt.DB
 
 	// boltOwned records whether Rainstorm opened Bolt itself (true) or whether
-	// it was provided via UseDB (false). It drives Open cleanup only in this
-	// phase; the public Close ownership rule is revisited in R6.4.
+	// it was provided via UseDB (false).
 	boltOwned bool
+}
+
+// NativeDB returns the underlying bbolt database.
+//
+// This is an advanced interoperability escape hatch. Native operations bypass
+// Rainstorm context checkpoints. Native writes can bypass codecs, indexes,
+// metadata, and invariants. Rainstorm cannot guarantee cancellation, rollback
+// composition, index consistency, or destination safety for native operations.
+// Callers must not close the returned database while Rainstorm is in use.
+// Callers are responsible for coordinating native transactions with Rainstorm
+// operations. Normal application code should prefer Rainstorm APIs and managed
+// transactions.
+func (db *DB) NativeDB() *bolt.DB {
+	if db == nil {
+		return nil
+	}
+	return db.bolt
 }
 
 // cleanupOwned closes a Rainstorm-owned bolt.DB. It is a no-op for databases
 // provided via UseDB, which remain owned by the caller.
 func (s *DB) cleanupOwned() {
-	if s.boltOwned && s.Bolt != nil {
-		_ = s.Bolt.Close()
+	if s.boltOwned && s.bolt != nil {
+		_ = s.bolt.Close()
 	}
 }
 
-// Close the database
+// Close the database.
+//
+// For a Rainstorm-owned database (opened via Open without UseDB), Close closes
+// the underlying bbolt database and returns its error.
+//
+// For a borrowed database (opened via UseDB), Close returns nil and does not
+// close the underlying bbolt database. The caller retains ownership.
+//
+// If the receiver is nil or the underlying bbolt database is nil, Close returns
+// ErrNilParam without panicking.
 func (s *DB) Close() error {
-	return s.Bolt.Close()
+	if s == nil {
+		return ErrNilParam
+	}
+	if s.bolt == nil {
+		return ErrNilParam
+	}
+	if !s.boltOwned {
+		return nil
+	}
+	return s.bolt.Close()
 }
 
 func (s *DB) checkVersion(ctx context.Context) error {

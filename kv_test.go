@@ -91,7 +91,7 @@ func TestSet(t *testing.T) {
 	err = db.Set(ctx, "b1", nil, 100)
 	require.Error(t, err)
 
-	db.Bolt.View(func(tx *bolt.Tx) error {
+	db.NativeDB().View(func(tx *bolt.Tx) error {
 		b1 := tx.Bucket([]byte("b1"))
 		require.NotNil(t, b1)
 		b2 := tx.Bucket([]byte("b2"))

@@ -34,7 +34,7 @@ func (s *DB) ReadTransaction(ctx context.Context, fn func(Node) error) error {
 		return ErrNilParam
 	}
 
-	return s.Bolt.View(func(tx *bolt.Tx) error {
+	return s.bolt.View(func(tx *bolt.Tx) error {
 		if err := checkContext(ctx); err != nil {
 			return err
 		}
@@ -77,7 +77,7 @@ func (s *DB) WriteTransaction(ctx context.Context, fn func(Node) error) error {
 		return ErrNilParam
 	}
 
-	return s.Bolt.Update(func(tx *bolt.Tx) error {
+	return s.bolt.Update(func(tx *bolt.Tx) error {
 		if err := checkContext(ctx); err != nil {
 			return err
 		}

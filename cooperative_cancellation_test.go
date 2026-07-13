@@ -360,7 +360,7 @@ func TestWriteOperation_RollbackOnPreCommitCancellation(t *testing.T) {
 	})
 	require.ErrorIs(t, err, context.Canceled)
 
-	err = db.Bolt.View(func(tx *bolt.Tx) error {
+	err = db.NativeDB().View(func(tx *bolt.Tx) error {
 		require.Nil(t, tx.Bucket([]byte("precommit")), "canceled transaction must roll back bucket creation")
 		return nil
 	})

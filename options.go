@@ -42,9 +42,18 @@ func Root(root ...string) OpenOption {
 }
 
 // UseDB allows Rainstorm to use an existing open Bolt.DB.
-// Warning: rainstorm.DB.Close() will close the bolt.DB instance.
+//
+// The database is borrowed: Rainstorm does not close it. The caller must keep
+// it open while Rainstorm is in use and remains responsible for closing it.
+// Rainstorm.Close() returns nil for a borrowed database.
+//
+// Native concurrent use must respect bbolt transaction rules.
+// The provided DB must not be nil.
 func UseDB(b *bolt.DB) OpenOption {
 	return func(opts *Options) error {
+		if b == nil {
+			return ErrNilParam
+		}
 		opts.path = b.Path()
 		opts.bolt = b
 		return nil

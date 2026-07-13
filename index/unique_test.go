@@ -20,7 +20,7 @@ func TestUniqueIndex(t *testing.T) {
 	db, _ := rainstorm.Open(context.Background(), filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	err := db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -125,7 +125,7 @@ func TestUniqueIndexRange(t *testing.T) {
 	db, _ := rainstorm.Open(context.Background(), filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -197,7 +197,7 @@ func TestUniqueIndexPrefix(t *testing.T) {
 	db, _ := rainstorm.Open(context.Background(), filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
