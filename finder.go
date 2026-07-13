@@ -106,15 +106,27 @@ func (n *node) One(ctx context.Context, fieldName string, value any, to any) err
 		return err
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	return n.readTx(ctx, func(tx *bolt.Tx) error {
 		return n.one(ctx, tx, bucketName, fieldName, cfg, to, val, field.IsID)
 	})
 }
 
 func (n *node) one(ctx context.Context, tx *bolt.Tx, bucketName, fieldName string, cfg *structConfig, to interface{}, val []byte, skipIndex bool) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	bucket := n.GetBucket(tx, bucketName)
 	if bucket == nil {
 		return ErrNotFound
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	var id []byte
@@ -127,13 +139,24 @@ func (n *node) one(ctx context.Context, tx *bolt.Tx, bucketName, fieldName strin
 			return err
 		}
 
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		var gErr error
 		id, gErr = idx.Get(ctx, val)
 		if gErr != nil {
 			return gErr
 		}
+
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
 	} else {
 		id = val
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
 	}
 
 	if id == nil {
@@ -145,7 +168,25 @@ func (n *node) one(ctx context.Context, tx *bolt.Tx, bucketName, fieldName strin
 		return ErrNotFound
 	}
 
-	return n.codec.Unmarshal(raw, to)
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	// Decode into a temporary so the caller's destination is preserved on
+	// codec error or cancellation.
+	destination := reflect.ValueOf(to)
+	temporary := reflect.New(destination.Elem().Type())
+
+	if err := n.codec.Unmarshal(raw, temporary.Interface()); err != nil {
+		return err
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	destination.Elem().Set(temporary.Elem())
+	return nil
 }
 
 // Find returns one or more records by the specified index
@@ -174,6 +215,10 @@ func (n *node) Find(ctx context.Context, fieldName string, value any, to any, op
 		fn(opts)
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	field, ok := cfg.Fields[fieldName]
 	if !ok || (!field.IsID && (field.Index == "" || value == nil)) {
 		query := newQuery(n, q.Eq(fieldName, value))
@@ -199,18 +244,35 @@ func (n *node) Find(ctx context.Context, fieldName string, value any, to any, op
 		return err
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	return n.readTx(ctx, func(tx *bolt.Tx) error {
 		return n.find(ctx, tx, bucketName, fieldName, cfg, sink, val, opts)
 	})
 }
 
 func (n *node) find(ctx context.Context, tx *bolt.Tx, bucketName, fieldName string, cfg *structConfig, sink *listSink, val []byte, opts *index.Options) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	bucket := n.GetBucket(tx, bucketName)
 	if bucket == nil {
 		return ErrNotFound
 	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	idx, err := getIndex(bucket, cfg.Fields[fieldName].Index, fieldName)
 	if err != nil {
+		return err
+	}
+
+	if err := checkContext(ctx); err != nil {
 		return err
 	}
 
@@ -222,18 +284,38 @@ func (n *node) find(ctx context.Context, tx *bolt.Tx, bucketName, fieldName stri
 		return err
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	sink.results = reflect.MakeSlice(reflect.Indirect(sink.ref).Type(), len(list), len(list))
 
 	sorter := newSorter(n, sink)
 	for i := range list {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		raw := bucket.Get(list[i])
 		if raw == nil {
 			return ErrNotFound
 		}
 
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		if _, err := sorter.filter(ctx, nil, bucket, list[i], raw); err != nil {
 			return err
 		}
+
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	return sorter.flush(ctx)
@@ -277,15 +359,27 @@ func (n *node) AllByIndex(ctx context.Context, fieldName string, to any, options
 		fn(opts)
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	return n.readTx(ctx, func(tx *bolt.Tx) error {
 		return n.allByIndex(ctx, tx, fieldName, cfg, &ref, opts)
 	})
 }
 
 func (n *node) allByIndex(ctx context.Context, tx *bolt.Tx, fieldName string, cfg *structConfig, ref *reflect.Value, opts *index.Options) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	bucket := n.GetBucket(tx, cfg.Name)
 	if bucket == nil {
 		return ErrNotFound
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	fieldCfg, ok := cfg.Fields[fieldName]
@@ -293,8 +387,16 @@ func (n *node) allByIndex(ctx context.Context, tx *bolt.Tx, fieldName string, cf
 		return ErrNotFound
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	idx, err := getIndex(bucket, fieldCfg.Index, fieldName)
 	if err != nil {
+		return err
+	}
+
+	if err := checkContext(ctx); err != nil {
 		return err
 	}
 
@@ -306,18 +408,38 @@ func (n *node) allByIndex(ctx context.Context, tx *bolt.Tx, fieldName string, cf
 		return err
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	results := reflect.MakeSlice(reflect.Indirect(*ref).Type(), len(list), len(list))
 
 	for i := range list {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		raw := bucket.Get(list[i])
 		if raw == nil {
 			return ErrNotFound
+		}
+
+		if err := checkContext(ctx); err != nil {
+			return err
 		}
 
 		err = n.codec.Unmarshal(raw, results.Index(i).Addr().Interface())
 		if err != nil {
 			return err
 		}
+
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	reflect.Indirect(*ref).Set(results)
@@ -334,6 +456,10 @@ func (n *node) All(ctx context.Context, to any, options ...FindOption) error {
 	opts := index.NewOptions()
 	for _, fn := range options {
 		fn(opts)
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	query := newQuery(n, nil).Limit(opts.Limit).Skip(opts.Skip)
@@ -382,6 +508,10 @@ func (n *node) Range(ctx context.Context, fieldName string, min any, max any, to
 		fn(opts)
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	field, ok := cfg.Fields[fieldName]
 	if !ok || (!field.IsID && field.Index == "") {
 		query := newQuery(n, q.And(q.Gte(fieldName, min), q.Lte(fieldName, max)))
@@ -407,8 +537,16 @@ func (n *node) Range(ctx context.Context, fieldName string, min any, max any, to
 		return err
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	mx, err := toBytes(max, n.codec)
 	if err != nil {
+		return err
+	}
+
+	if err := checkContext(ctx); err != nil {
 		return err
 	}
 
@@ -418,14 +556,29 @@ func (n *node) Range(ctx context.Context, fieldName string, min any, max any, to
 }
 
 func (n *node) rnge(ctx context.Context, tx *bolt.Tx, bucketName, fieldName string, cfg *structConfig, sink *listSink, min, max []byte, opts *index.Options) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	bucket := n.GetBucket(tx, bucketName)
 	if bucket == nil {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
 		reflect.Indirect(sink.ref).SetLen(0)
 		return nil
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	idx, err := getIndex(bucket, cfg.Fields[fieldName].Index, fieldName)
 	if err != nil {
+		return err
+	}
+
+	if err := checkContext(ctx); err != nil {
 		return err
 	}
 
@@ -434,17 +587,37 @@ func (n *node) rnge(ctx context.Context, tx *bolt.Tx, bucketName, fieldName stri
 		return err
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	sink.results = reflect.MakeSlice(reflect.Indirect(sink.ref).Type(), len(list), len(list))
 	sorter := newSorter(n, sink)
 	for i := range list {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		raw := bucket.Get(list[i])
 		if raw == nil {
 			return ErrNotFound
 		}
 
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		if _, err := sorter.filter(ctx, nil, bucket, list[i], raw); err != nil {
 			return err
 		}
+
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	return sorter.flush(ctx)
@@ -478,6 +651,10 @@ func (n *node) Prefix(ctx context.Context, fieldName string, prefix string, to a
 		fn(opts)
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	field, ok := cfg.Fields[fieldName]
 	if !ok || (!field.IsID && field.Index == "") {
 		query := newQuery(n, q.Re(fieldName, fmt.Sprintf("^%s", prefix)))
@@ -503,20 +680,39 @@ func (n *node) Prefix(ctx context.Context, fieldName string, prefix string, to a
 		return err
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	return n.readTx(ctx, func(tx *bolt.Tx) error {
 		return n.prefix(ctx, tx, bucketName, fieldName, cfg, sink, prfx, opts)
 	})
 }
 
 func (n *node) prefix(ctx context.Context, tx *bolt.Tx, bucketName, fieldName string, cfg *structConfig, sink *listSink, prefix []byte, opts *index.Options) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	bucket := n.GetBucket(tx, bucketName)
 	if bucket == nil {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
 		reflect.Indirect(sink.ref).SetLen(0)
 		return nil
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	idx, err := getIndex(bucket, cfg.Fields[fieldName].Index, fieldName)
 	if err != nil {
+		return err
+	}
+
+	if err := checkContext(ctx); err != nil {
 		return err
 	}
 
@@ -525,17 +721,37 @@ func (n *node) prefix(ctx context.Context, tx *bolt.Tx, bucketName, fieldName st
 		return err
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	sink.results = reflect.MakeSlice(reflect.Indirect(sink.ref).Type(), len(list), len(list))
 	sorter := newSorter(n, sink)
 	for i := range list {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		raw := bucket.Get(list[i])
 		if raw == nil {
 			return ErrNotFound
 		}
 
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		if _, err := sorter.filter(ctx, nil, bucket, list[i], raw); err != nil {
 			return err
 		}
+
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	return sorter.flush(ctx)
