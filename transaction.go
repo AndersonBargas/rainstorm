@@ -79,10 +79,18 @@ func (n *node) Commit(ctx context.Context) error {
 }
 
 // ReadTransaction executes fn within a read-only bbolt transaction.
-// The transaction is automatically rolled back when fn returns.
+// The transaction is automatically closed when fn returns.
+//
 // Context is checked before acquisition, after acquisition, and before
 // concluding the read. If the context is cancelled after the callback
 // returns successfully, the cancellation error is returned.
+//
+// Panic behavior: if fn panics, bbolt closes (rolls back) the read
+// transaction and the panic propagates to the caller. Rainstorm does
+// not recover panics.
+//
+// Manual Commit or Rollback calls on the transaction-bound Node inside
+// the callback will panic because the transaction is managed by bbolt.
 func (s *DB) ReadTransaction(ctx context.Context, fn func(Node) error) error {
 	if err := checkContext(ctx); err != nil {
 		return err
@@ -110,12 +118,23 @@ func (s *DB) ReadTransaction(ctx context.Context, fn func(Node) error) error {
 }
 
 // WriteTransaction executes fn within a writable bbolt transaction.
-// If fn returns an error, the transaction is rolled back.
-// The context is checked before commit: if cancelled, the transaction
-// is rolled back and ctx.Err() is returned.
+// If fn returns an error, the transaction is rolled back and the error
+// is returned.
+//
+// The context is checked before acquisition, after acquisition, and
+// before commit. If the context is cancelled before commit, the
+// transaction is rolled back and ctx.Err() is returned. After a
+// successful commit, a later cancellation is not retroactively applied.
 //
 // Unlike legacy methods, WriteTransaction ignores batch mode entirely
 // and always uses Bolt.Update, which executes the callback exactly once.
+//
+// Panic behavior: if fn panics, bbolt rolls back the transaction and
+// the panic propagates to the caller. All writes performed before the
+// panic are discarded. Rainstorm does not recover panics.
+//
+// Manual Commit or Rollback calls on the transaction-bound Node inside
+// the callback will panic because the transaction is managed by bbolt.
 func (s *DB) WriteTransaction(ctx context.Context, fn func(Node) error) error {
 	if err := checkContext(ctx); err != nil {
 		return err
