@@ -120,6 +120,9 @@ func (n *node) ReIndex(ctx context.Context, data any) error {
 	if err != nil {
 		return err
 	}
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
 
 	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
 		return n.reIndex(ctx, tx, data, cfg)
@@ -127,23 +130,43 @@ func (n *node) ReIndex(ctx context.Context, data any) error {
 }
 
 func (n *node) reIndex(ctx context.Context, tx *bolt.Tx, data interface{}, cfg *structConfig) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	root := n.WithTransaction(tx)
 	nodes, err := root.From(cfg.Name).PrefixScan(ctx, indexPrefix)
 	if err != nil {
 		return err
 	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	bucket := root.GetBucket(tx, cfg.Name)
 	if bucket == nil {
 		return ErrNotFound
 	}
 
-	for _, node := range nodes {
-		buckets := node.Bucket()
+	// Delete existing index buckets.
+	for _, idxNode := range nodes {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+		buckets := idxNode.Bucket()
 		name := buckets[len(buckets)-1]
 		err := bucket.DeleteBucket([]byte(name))
 		if err != nil {
 			return err
 		}
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	total, err := root.Count(ctx, data)
@@ -151,14 +174,30 @@ func (n *node) reIndex(ctx context.Context, tx *bolt.Tx, data interface{}, cfg *
 		return err
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	for i := 0; i < total; i++ {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		err = root.Select(q.True()).Skip(i).First(ctx, data)
 		if err != nil {
 			return err
 		}
 
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		err = root.Update(ctx, data)
 		if err != nil {
+			return err
+		}
+
+		if err := checkContext(ctx); err != nil {
 			return err
 		}
 	}
