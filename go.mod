@@ -1,4 +1,4 @@
-module github.com/AndersonBargas/rainstorm/v5
+module github.com/AndersonBargas/rainstorm/v6
 
 require (
 	github.com/Sereal/Sereal v0.0.0-20200820125258-a016b7cda3f3

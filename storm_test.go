@@ -2,6 +2,7 @@ package rainstorm
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"math"
 	"math/bits"
@@ -11,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AndersonBargas/rainstorm/v5/codec/json"
+	"github.com/AndersonBargas/rainstorm/v6/codec/json"
 	"github.com/stretchr/testify/require"
 	bolt "go.etcd.io/bbolt"
 )
@@ -20,7 +21,7 @@ const maxInt = 1<<(bits.UintSize-1) - 1
 const maxUint = 1<<bits.UintSize - 1
 
 func TestNewStorm(t *testing.T) {
-	db, err := Open("")
+	db, err := Open(context.Background(), "")
 
 	require.Error(t, err)
 	require.Nil(t, db)
@@ -30,7 +31,7 @@ func TestNewStorm(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	file := filepath.Join(dir, "rainstorm.db")
-	db, err = Open(file)
+	db, err = Open(context.Background(), file)
 	defer db.Close()
 
 	require.Implements(t, (*Node)(nil), db)
@@ -40,7 +41,7 @@ func TestNewStorm(t *testing.T) {
 	require.Equal(t, defaultCodec, db.Codec())
 
 	var v string
-	err = db.Get(dbinfo, "version", &v)
+	err = db.Get(context.Background(), dbinfo, "version", &v)
 	require.NoError(t, err)
 	require.Equal(t, Version, v)
 }
@@ -50,14 +51,14 @@ func TestNewRainstormWithRainstormOptions(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	dc := new(dummyCodec)
-	db1, _ := Open(filepath.Join(dir, "rainstorm1.db"), BoltOptions(0660, &bolt.Options{Timeout: 10 * time.Second}), Codec(dc), Root("a", "b"))
+	db1, _ := Open(context.Background(), filepath.Join(dir, "rainstorm1.db"), BoltOptions(0660, &bolt.Options{Timeout: 10 * time.Second}), Codec(dc), Root("a", "b"))
 	require.Equal(t, dc, db1.Codec())
 	require.Equal(t, []string{"a", "b"}, db1.Node.(*node).rootBucket)
 
-	err := db1.Save(&SimpleUser{ID: 1})
+	err := db1.Save(context.Background(), &SimpleUser{ID: 1})
 	require.NoError(t, err)
 
-	db2, _ := Open(filepath.Join(dir, "rainstorm2.db"), Codec(dc))
+	db2, _ := Open(context.Background(), filepath.Join(dir, "rainstorm2.db"), Codec(dc))
 	require.Equal(t, dc, db2.Codec())
 }
 
@@ -65,7 +66,7 @@ func TestNewRainstormWithBatch(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
 
-	db1, _ := Open(filepath.Join(dir, "rainstorm1.db"), Batch())
+	db1, _ := Open(context.Background(), filepath.Join(dir, "rainstorm1.db"), Batch())
 	defer db1.Close()
 
 	require.True(t, db1.Node.(*node).batchMode)
@@ -87,10 +88,10 @@ func TestBoltDB(t *testing.T) {
 	bDB, err := bolt.Open(filepath.Join(dir, "bolt.db"), 0600, &bolt.Options{Timeout: 10 * time.Second})
 	require.NoError(t, err)
 	// no need to close bolt.DB Rainstorm will take care of it
-	sDB, err := Open("my.db", UseDB(bDB))
+	sDB, err := Open(context.Background(), "my.db", UseDB(bDB))
 	require.NoError(t, err)
 	defer sDB.Close()
-	err = sDB.Save(&SimpleUser{ID: 10})
+	err = sDB.Save(context.Background(), &SimpleUser{ID: 10})
 	require.NoError(t, err)
 }
 
@@ -161,12 +162,12 @@ func TestToBytes(t *testing.T) {
 	}
 }
 
-func createDB(t errorHandler, opts ...func(*Options) error) (*DB, func()) {
+func createDB(t errorHandler, opts ...OpenOption) (*DB, func()) {
 	dir, err := os.MkdirTemp(os.TempDir(), "rainstorm")
 	if err != nil {
 		t.Error(err)
 	}
-	db, err := Open(filepath.Join(dir, "rainstorm.db"), opts...)
+	db, err := Open(context.Background(), filepath.Join(dir, "rainstorm.db"), opts...)
 	if err != nil {
 		t.Error(err)
 	}

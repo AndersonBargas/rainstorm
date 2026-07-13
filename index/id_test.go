@@ -1,13 +1,14 @@
 package index_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/AndersonBargas/rainstorm/v5"
-	"github.com/AndersonBargas/rainstorm/v5/index"
-	"github.com/AndersonBargas/rainstorm/v5/q"
+	"github.com/AndersonBargas/rainstorm/v6"
+	"github.com/AndersonBargas/rainstorm/v6/index"
+	"github.com/AndersonBargas/rainstorm/v6/q"
 	"github.com/stretchr/testify/require"
 	bolt "go.etcd.io/bbolt"
 )
@@ -27,10 +28,11 @@ type SimpleProduct struct {
 func TestIDIndex(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	ctx := context.Background()
+	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	err := db.Init(&SimpleLogin{})
+	err := db.Init(ctx, &SimpleLogin{})
 	require.NoError(t, err)
 
 	simpleLogin := &SimpleLogin{
@@ -38,35 +40,36 @@ func TestIDIndex(t *testing.T) {
 		Password: "OoopsRAWpassword!",
 	}
 
-	err = db.Save(simpleLogin)
+	err = db.Save(ctx, simpleLogin)
 	require.NoError(t, err)
 
 	var simpleLogins []SimpleLogin
 
-	err = db.AllByIndex("Email", &simpleLogins)
+	err = db.AllByIndex(ctx, "Email", &simpleLogins)
 	require.NoError(t, err)
 	require.Len(t, simpleLogins, 1)
 
-	err = db.Prefix("Email", "uni", &simpleLogins)
+	err = db.Prefix(ctx, "Email", "uni", &simpleLogins)
 	require.NoError(t, err)
 
-	err = db.Select(q.Eq("Email", "unique@example.org")).First(&SimpleLogin{})
+	err = db.Select(q.Eq("Email", "unique@example.org")).First(ctx, &SimpleLogin{})
 	require.NoError(t, err)
 
-	err = db.Set("loggedInUsers", 1, &simpleLogin)
+	err = db.Set(ctx, "loggedInUsers", 1, &simpleLogin)
 	require.NoError(t, err)
 
-	err = db.Delete("loggedInUsers", 1)
+	err = db.Delete(ctx, "loggedInUsers", 1)
 	require.NoError(t, err)
 }
 
 func TestIDIndexPrefix(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	ctx := context.Background()
+	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	err := db.Init(&SimpleLogin{})
+	err := db.Init(ctx, &SimpleLogin{})
 	require.NoError(t, err)
 
 	simpleLogin := &SimpleLogin{
@@ -74,7 +77,7 @@ func TestIDIndexPrefix(t *testing.T) {
 		Password: "OoopsRAWpassword!",
 	}
 
-	err = db.Save(simpleLogin)
+	err = db.Save(ctx, simpleLogin)
 	require.NoError(t, err)
 
 	simpleLogin = &SimpleLogin{
@@ -82,41 +85,42 @@ func TestIDIndexPrefix(t *testing.T) {
 		Password: "OoopsRAWpasswordAgain!",
 	}
 
-	err = db.Save(simpleLogin)
+	err = db.Save(ctx, simpleLogin)
 	require.NoError(t, err)
 
 	var simpleLogins []SimpleLogin
 
-	err = db.Prefix("Email", "uni", &simpleLogins)
+	err = db.Prefix(ctx, "Email", "uni", &simpleLogins)
 	require.NoError(t, err)
 
 	setSkip := func(opt *index.Options) {
 		opt.Skip = 1
 	}
-	err = db.Prefix("Email", "uni", &simpleLogins, setSkip)
+	err = db.Prefix(ctx, "Email", "uni", &simpleLogins, setSkip)
 	require.NoError(t, err)
 
 	setZeroedLimit := func(opt *index.Options) {
 		opt.Limit = 0
 	}
-	err = db.Prefix("Email", "uni", &simpleLogins, setZeroedLimit)
+	err = db.Prefix(ctx, "Email", "uni", &simpleLogins, setZeroedLimit)
 	require.Error(t, err)
 	require.True(t, rainstorm.ErrNotFound == err)
 
 	setLimit := func(opt *index.Options) {
 		opt.Limit = 1
 	}
-	err = db.Prefix("Email", "uni", &simpleLogins, setLimit)
+	err = db.Prefix(ctx, "Email", "uni", &simpleLogins, setLimit)
 	require.NoError(t, err)
 }
 
 func TestIDIndexRange(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	ctx := context.Background()
+	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	err := db.Init(&SimpleProduct{})
+	err := db.Init(ctx, &SimpleProduct{})
 	require.NoError(t, err)
 
 	for i := 1; i <= 50; i++ {
@@ -125,26 +129,26 @@ func TestIDIndexRange(t *testing.T) {
 			Description: "Must have product!",
 		}
 
-		err = db.Save(simpleProduct)
+		err = db.Save(ctx, simpleProduct)
 		require.NoError(t, err)
 	}
 
 	var simpleProducts []SimpleProduct
 
-	err = db.Range("Barcode", 5, 8, &simpleProducts)
+	err = db.Range(ctx, "Barcode", 5, 8, &simpleProducts)
 	require.NoError(t, err)
 
 	setSkip := func(opt *index.Options) {
 		opt.Skip = 2
 	}
-	err = db.Range("Barcode", 5, 8, &simpleProducts, setSkip)
+	err = db.Range(ctx, "Barcode", 5, 8, &simpleProducts, setSkip)
 	require.NoError(t, err)
 
 	setZeroedLimit := func(opt *index.Options) {
 		opt.Limit = 0
 	}
 
-	err = db.Range("Barcode", 5, 8, &simpleProducts, setZeroedLimit)
+	err = db.Range(ctx, "Barcode", 5, 8, &simpleProducts, setZeroedLimit)
 	require.Error(t, err)
 	require.True(t, rainstorm.ErrNotFound == err)
 
@@ -152,7 +156,7 @@ func TestIDIndexRange(t *testing.T) {
 		opt.Limit = 1
 	}
 
-	err = db.Range("Barcode", 5, 8, &simpleProducts, setLimit)
+	err = db.Range(ctx, "Barcode", 5, 8, &simpleProducts, setLimit)
 	require.NoError(t, err)
 
 }
@@ -160,7 +164,8 @@ func TestIDIndexRange(t *testing.T) {
 func TestIDIndexParams(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	ctx := context.Background()
+	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
 	err := db.Bolt.Update(func(tx *bolt.Tx) error {
@@ -199,7 +204,8 @@ func TestIDIndexParams(t *testing.T) {
 /*func TestIDIndex(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	ctx := context.Background()
+	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
 	err := db.Bolt.Update(func(tx *bolt.Tx) error {
@@ -304,7 +310,8 @@ func TestIDIndexParams(t *testing.T) {
 func TestIDIndexRange(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	ctx := context.Background()
+	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
 	db.Bolt.Update(func(tx *bolt.Tx) error {
@@ -376,7 +383,8 @@ func TestIDIndexRange(t *testing.T) {
 func TestIDIndexPrefix(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	ctx := context.Background()
+	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
 	db.Bolt.Update(func(tx *bolt.Tx) error {

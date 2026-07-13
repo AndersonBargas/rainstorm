@@ -1,6 +1,7 @@
 package rainstorm
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,8 @@ func TestFind(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	for i := 0; i < 100; i++ {
 		w := User{Name: "John", ID: i + 1, Slug: fmt.Sprintf("John%d", i+1)}
 
@@ -24,15 +27,15 @@ func TestFind(t *testing.T) {
 			w.Group = "normal"
 		}
 
-		err := db.Save(&w)
+		err := db.Save(ctx, &w)
 		require.NoError(t, err)
 	}
 
-	err := db.Find("Name", "John", &User{})
+	err := db.Find(ctx, "Name", "John", &User{})
 	require.Error(t, err)
 	require.Equal(t, ErrSlicePtrNeeded, err)
 
-	err = db.Find("Name", "John", &[]struct {
+	err = db.Find(ctx, "Name", "John", &[]struct {
 		Name string
 		ID   int
 	}{})
@@ -41,76 +44,78 @@ func TestFind(t *testing.T) {
 
 	notTheRightUsers := []UniqueNameUser{}
 
-	err = db.Find("Name", "John", &notTheRightUsers)
+	err = db.Find(ctx, "Name", "John", &notTheRightUsers)
 	require.Error(t, err)
 	require.EqualError(t, err, "not found")
 
 	users := []User{}
 
-	err = db.Find("unexportedField", "John", &users)
+	err = db.Find(ctx, "unexportedField", "John", &users)
 	require.Error(t, err)
 	require.EqualError(t, err, "field unexportedField not found")
 
-	err = db.Find("DateOfBirth", "John", &users)
+	err = db.Find(ctx, "DateOfBirth", "John", &users)
 	require.Error(t, err)
 	require.True(t, ErrNotFound == err)
 
-	err = db.Find("Group", "staff", &users)
+	err = db.Find(ctx, "Group", "staff", &users)
 	require.NoError(t, err)
 	require.Len(t, users, 50)
 	require.Equal(t, 1, users[0].ID)
 	require.Equal(t, 99, users[49].ID)
 
-	err = db.Find("Group", "staff", &users, Reverse())
+	err = db.Find(ctx, "Group", "staff", &users, Reverse())
 	require.NoError(t, err)
 	require.Len(t, users, 50)
 	require.Equal(t, 99, users[0].ID)
 	require.Equal(t, 1, users[49].ID)
 
-	err = db.Find("Group", "admin", &users)
+	err = db.Find(ctx, "Group", "admin", &users)
 	require.Error(t, err)
 	require.True(t, ErrNotFound == err)
 
-	err = db.Find("Name", "John", users)
+	err = db.Find(ctx, "Name", "John", users)
 	require.Error(t, err)
 	require.Equal(t, ErrSlicePtrNeeded, err)
 
-	err = db.Find("Name", "John", &users)
+	err = db.Find(ctx, "Name", "John", &users)
 	require.NoError(t, err)
 	require.Len(t, users, 100)
 	require.Equal(t, 1, users[0].ID)
 	require.Equal(t, 100, users[99].ID)
 
-	err = db.Find("Name", "John", &users, Reverse())
+	err = db.Find(ctx, "Name", "John", &users, Reverse())
 	require.NoError(t, err)
 	require.Len(t, users, 100)
 	require.Equal(t, 100, users[0].ID)
 	require.Equal(t, 1, users[99].ID)
 
 	users = []User{}
-	err = db.Find("Slug", "John10", &users)
+	err = db.Find(ctx, "Slug", "John10", &users)
 	require.NoError(t, err)
 	require.Len(t, users, 1)
 	require.Equal(t, 10, users[0].ID)
 
 	users = []User{}
-	err = db.Find("Name", nil, &users)
+	err = db.Find(ctx, "Name", nil, &users)
 	require.Error(t, err)
 	require.True(t, ErrNotFound == err)
 
-	err = db.Find("Name", "John", &users, Limit(10), Skip(20))
+	err = db.Find(ctx, "Name", "John", &users, Limit(10), Skip(20))
 	require.NoError(t, err)
 	require.Len(t, users, 10)
 	require.Equal(t, 21, users[0].ID)
 	require.Equal(t, 30, users[9].ID)
 
-	err = db.Find("Age", 10, &users)
+	err = db.Find(ctx, "Age", 10, &users)
 	require.NoError(t, err)
 }
 
 func TestFindNil(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
+
+	ctx := context.Background()
 
 	type User struct {
 		ID        int        `rainstorm:"increment"`
@@ -128,22 +133,22 @@ func TestFindNil(t *testing.T) {
 			u.DeletedAt = &now
 		}
 
-		err := db.Save(&u)
+		err := db.Save(ctx, &u)
 		require.NoError(t, err)
 	}
 
 	var users []User
-	err := db.Find("CreatedAt", nil, &users)
+	err := db.Find(ctx, "CreatedAt", nil, &users)
 	require.NoError(t, err)
 	require.Len(t, users, 5)
 
 	users = nil
-	err = db.Find("CreatedAt", t1, &users)
+	err = db.Find(ctx, "CreatedAt", t1, &users)
 	require.NoError(t, err)
 	require.Len(t, users, 5)
 
 	users = nil
-	err = db.Find("DeletedAt", nil, &users)
+	err = db.Find(ctx, "DeletedAt", nil, &users)
 	require.NoError(t, err)
 	require.Len(t, users, 5)
 }
@@ -152,6 +157,8 @@ func TestFindIntIndex(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	type Score struct {
 		ID    int    `rainstorm:"increment"`
 		Score uint64 `rainstorm:"index"`
@@ -159,12 +166,12 @@ func TestFindIntIndex(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		w := Score{Score: uint64(i % 3)}
-		err := db.Save(&w)
+		err := db.Save(ctx, &w)
 		require.NoError(t, err)
 	}
 
 	var scores []Score
-	err := db.Find("Score", 2, &scores)
+	err := db.Find(ctx, "Score", 2, &scores)
 	require.NoError(t, err)
 	require.Len(t, scores, 3)
 	require.Equal(t, []Score{
@@ -178,40 +185,42 @@ func TestAllByIndex(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	for i := 0; i < 100; i++ {
 		w := User{Name: "John", ID: i + 1, Slug: fmt.Sprintf("John%d", i+1), DateOfBirth: time.Now().Add(-time.Duration(i*10) * time.Minute)}
-		err := db.Save(&w)
+		err := db.Save(ctx, &w)
 		require.NoError(t, err)
 	}
 
-	err := db.AllByIndex("", nil)
+	err := db.AllByIndex(ctx, "", nil)
 	require.Error(t, err)
 	require.Equal(t, ErrSlicePtrNeeded, err)
 
 	var users []User
 
-	err = db.AllByIndex("Unknown field", &users)
+	err = db.AllByIndex(ctx, "Unknown field", &users)
 	require.Error(t, err)
 	require.Equal(t, ErrNotFound, err)
 
-	err = db.AllByIndex("DateOfBirth", &users)
+	err = db.AllByIndex(ctx, "DateOfBirth", &users)
 	require.NoError(t, err)
 	require.Len(t, users, 100)
 	require.Equal(t, 100, users[0].ID)
 	require.Equal(t, 1, users[99].ID)
 
-	err = db.AllByIndex("Name", &users)
+	err = db.AllByIndex(ctx, "Name", &users)
 	require.NoError(t, err)
 	require.Len(t, users, 100)
 	require.Equal(t, 1, users[0].ID)
 	require.Equal(t, 100, users[99].ID)
 
 	y := UniqueNameUser{Name: "Jake", ID: 200}
-	err = db.Save(&y)
+	err = db.Save(ctx, &y)
 	require.NoError(t, err)
 
 	var y2 []UniqueNameUser
-	err = db.AllByIndex("ID", &y2)
+	err = db.AllByIndex(ctx, "ID", &y2)
 	require.NoError(t, err)
 	require.Len(t, y2, 1)
 
@@ -219,73 +228,73 @@ func TestAllByIndex(t *testing.T) {
 	n.ID = "100"
 	n.Name = "John"
 
-	err = db.Save(&n)
+	err = db.Save(ctx, &n)
 	require.NoError(t, err)
 
 	var n2 []NestedID
-	err = db.AllByIndex("ID", &n2)
+	err = db.AllByIndex(ctx, "ID", &n2)
 	require.NoError(t, err)
 	require.Len(t, n2, 1)
 
-	err = db.AllByIndex("Name", &users, Limit(10))
+	err = db.AllByIndex(ctx, "Name", &users, Limit(10))
 	require.NoError(t, err)
 	require.Len(t, users, 10)
 	require.Equal(t, 1, users[0].ID)
 	require.Equal(t, 10, users[9].ID)
 
-	err = db.AllByIndex("Name", &users, Limit(200))
+	err = db.AllByIndex(ctx, "Name", &users, Limit(200))
 	require.NoError(t, err)
 	require.Len(t, users, 100)
 	require.Equal(t, 1, users[0].ID)
 	require.Equal(t, 100, users[99].ID)
 
-	err = db.AllByIndex("Name", &users, Limit(-10))
+	err = db.AllByIndex(ctx, "Name", &users, Limit(-10))
 	require.NoError(t, err)
 	require.Len(t, users, 100)
 	require.Equal(t, 1, users[0].ID)
 	require.Equal(t, 100, users[99].ID)
 
-	err = db.AllByIndex("Name", &users, Skip(200))
+	err = db.AllByIndex(ctx, "Name", &users, Skip(200))
 	require.NoError(t, err)
 	require.Len(t, users, 0)
 
-	err = db.AllByIndex("Name", &users, Skip(-10))
+	err = db.AllByIndex(ctx, "Name", &users, Skip(-10))
 	require.NoError(t, err)
 	require.Len(t, users, 100)
 	require.Equal(t, 1, users[0].ID)
 	require.Equal(t, 100, users[99].ID)
 
-	err = db.AllByIndex("ID", &users)
+	err = db.AllByIndex(ctx, "ID", &users)
 	require.NoError(t, err)
 	require.Len(t, users, 100)
 	require.Equal(t, 1, users[0].ID)
 	require.Equal(t, 100, users[99].ID)
 
-	err = db.AllByIndex("ID", &users, Limit(10))
+	err = db.AllByIndex(ctx, "ID", &users, Limit(10))
 	require.NoError(t, err)
 	require.Len(t, users, 10)
 	require.Equal(t, 1, users[0].ID)
 	require.Equal(t, 10, users[9].ID)
 
-	err = db.AllByIndex("ID", &users, Skip(10))
+	err = db.AllByIndex(ctx, "ID", &users, Skip(10))
 	require.NoError(t, err)
 	require.Len(t, users, 90)
 	require.Equal(t, 11, users[0].ID)
 	require.Equal(t, 100, users[89].ID)
 
-	err = db.AllByIndex("Name", &users, Limit(10), Skip(10))
+	err = db.AllByIndex(ctx, "Name", &users, Limit(10), Skip(10))
 	require.NoError(t, err)
 	require.Len(t, users, 10)
 	require.Equal(t, 11, users[0].ID)
 	require.Equal(t, 20, users[9].ID)
 
-	err = db.AllByIndex("Name", &users, Limit(10), Skip(10), Reverse())
+	err = db.AllByIndex(ctx, "Name", &users, Limit(10), Skip(10), Reverse())
 	require.NoError(t, err)
 	require.Len(t, users, 10)
 	require.Equal(t, 90, users[0].ID)
 	require.Equal(t, 81, users[9].ID)
 
-	err = db.AllByIndex("Age", &users, Limit(10))
+	err = db.AllByIndex(ctx, "Age", &users, Limit(10))
 	require.NoError(t, err)
 	require.Len(t, users, 10)
 }
@@ -294,21 +303,23 @@ func TestAll(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	for i := 0; i < 100; i++ {
 		w := User{Name: "John", ID: i + 1, Slug: fmt.Sprintf("John%d", i+1), DateOfBirth: time.Now().Add(-time.Duration(i*10) * time.Minute)}
-		err := db.Save(&w)
+		err := db.Save(ctx, &w)
 		require.NoError(t, err)
 	}
 
 	var users []User
 
-	err := db.All(&users)
+	err := db.All(ctx, &users)
 	require.NoError(t, err)
 	require.Len(t, users, 100)
 	require.Equal(t, 1, users[0].ID)
 	require.Equal(t, 100, users[99].ID)
 
-	err = db.All(&users, Reverse())
+	err = db.All(ctx, &users, Reverse())
 	require.NoError(t, err)
 	require.Len(t, users, 100)
 	require.Equal(t, 100, users[0].ID)
@@ -316,42 +327,42 @@ func TestAll(t *testing.T) {
 
 	var users2 []*User
 
-	err = db.All(&users2)
+	err = db.All(ctx, &users2)
 	require.NoError(t, err)
 	require.Len(t, users2, 100)
 	require.Equal(t, 1, users2[0].ID)
 	require.Equal(t, 100, users2[99].ID)
 
-	err = db.Save(&NestedID{
+	err = db.Save(ctx, &NestedID{
 		ToEmbed: ToEmbed{ID: "id1"},
 		Name:    "John",
 	})
 	require.NoError(t, err)
 
-	err = db.Save(&NestedID{
+	err = db.Save(ctx, &NestedID{
 		ToEmbed: ToEmbed{ID: "id2"},
 		Name:    "Mike",
 	})
 	require.NoError(t, err)
 
-	db.Save(&NestedID{
+	db.Save(ctx, &NestedID{
 		ToEmbed: ToEmbed{ID: "id3"},
 		Name:    "Steve",
 	})
 	require.NoError(t, err)
 
 	var nested []NestedID
-	err = db.All(&nested)
+	err = db.All(ctx, &nested)
 	require.NoError(t, err)
 	require.Len(t, nested, 3)
 
-	err = db.All(&users, Limit(10), Skip(10))
+	err = db.All(ctx, &users, Limit(10), Skip(10))
 	require.NoError(t, err)
 	require.Len(t, users, 10)
 	require.Equal(t, 11, users[0].ID)
 	require.Equal(t, 20, users[9].ID)
 
-	err = db.All(&users, Limit(0), Skip(0))
+	err = db.All(ctx, &users, Limit(0), Skip(0))
 	require.NoError(t, err)
 	require.Len(t, users, 0)
 }
@@ -360,54 +371,58 @@ func TestCount(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	for i := 0; i < 100; i++ {
 		w := User{Name: "John", ID: i + 1, Slug: fmt.Sprintf("John%d", i+1), DateOfBirth: time.Now().Add(-time.Duration(i*10) * time.Minute)}
-		err := db.Save(&w)
+		err := db.Save(ctx, &w)
 		require.NoError(t, err)
 	}
 
-	count, err := db.Count(&User{})
+	count, err := db.Count(ctx, &User{})
 	require.NoError(t, err)
 	require.Equal(t, 100, count)
 
 	w := User{Name: "John", ID: 101, Slug: fmt.Sprintf("John%d", 101), DateOfBirth: time.Now().Add(-time.Duration(101*10) * time.Minute)}
-	err = db.Save(&w)
+	err = db.Save(ctx, &w)
 	require.NoError(t, err)
 
-	count, err = db.Count(&User{})
+	count, err = db.Count(ctx, &User{})
 	require.NoError(t, err)
 	require.Equal(t, 101, count)
 
-	tx, err := db.Begin(true)
+	tx, err := db.Begin(ctx, true)
 	require.NoError(t, err)
 
-	_, err = tx.Count(User{})
+	_, err = tx.Count(ctx, User{})
 	require.Equal(t, ErrStructPtrNeeded, err)
 
-	count, err = tx.Count(&User{})
+	count, err = tx.Count(ctx, &User{})
 	require.NoError(t, err)
 	require.Equal(t, 101, count)
 
 	w = User{Name: "John", ID: 102, Slug: fmt.Sprintf("John%d", 102), DateOfBirth: time.Now().Add(-time.Duration(101*10) * time.Minute)}
-	err = tx.Save(&w)
+	err = tx.Save(ctx, &w)
 	require.NoError(t, err)
 
-	count, err = tx.Count(&User{})
+	count, err = tx.Count(ctx, &User{})
 	require.NoError(t, err)
 	require.Equal(t, 102, count)
 
-	tx.Commit()
+	tx.Commit(ctx)
 }
 
 func TestCountEmpty(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	user := &User{}
-	err := db.Init(user)
+	err := db.Init(ctx, user)
 	require.NoError(t, err)
 
-	count, err := db.Count(user)
+	count, err := db.Count(ctx, user)
 	require.Zero(t, count)
 	require.NoError(t, err)
 }
@@ -416,63 +431,65 @@ func TestOne(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	u := UniqueNameUser{Name: "John", ID: 10}
-	err := db.Save(&u)
+	err := db.Save(ctx, &u)
 	require.NoError(t, err)
 
 	v := UniqueNameUser{}
-	err = db.One("Name", "John", &v)
+	err = db.One(ctx, "Name", "John", &v)
 	require.NoError(t, err)
 	require.Equal(t, u, v)
 
 	for i := 0; i < 10; i++ {
 		w := IndexedNameUser{Name: "John", ID: i + 1, Group: "staff"}
-		err = db.Save(&w)
+		err = db.Save(ctx, &w)
 		require.NoError(t, err)
 	}
 
 	var x IndexedNameUser
-	err = db.One("Name", "John", &x)
+	err = db.One(ctx, "Name", "John", &x)
 	require.NoError(t, err)
 	require.Equal(t, "John", x.Name)
 	require.Equal(t, 1, x.ID)
 	require.Zero(t, x.age)
 	require.True(t, x.DateOfBirth.IsZero())
 
-	err = db.One("Name", "Mike", &x)
+	err = db.One(ctx, "Name", "Mike", &x)
 	require.Error(t, err)
 	require.Equal(t, ErrNotFound, err)
 
-	err = db.One("", nil, &x)
+	err = db.One(ctx, "", nil, &x)
 	require.Error(t, err)
 	require.True(t, ErrNotFound == err)
 
-	err = db.One("", "Mike", nil)
+	err = db.One(ctx, "", "Mike", nil)
 	require.Error(t, err)
 	require.Equal(t, ErrStructPtrNeeded, err)
 
-	err = db.One("", nil, nil)
+	err = db.One(ctx, "", nil, nil)
 	require.Error(t, err)
 	require.Equal(t, ErrStructPtrNeeded, err)
 
-	err = db.One("Group", "staff", &x)
+	err = db.One(ctx, "Group", "staff", &x)
 	require.NoError(t, err)
 	require.Equal(t, 1, x.ID)
 
-	err = db.One("Score", 5, &x)
+	err = db.One(ctx, "Score", 5, &x)
 	require.NoError(t, err)
 	require.Equal(t, 5, x.ID)
 
-	err = db.One("Group", "admin", &x)
+	err = db.One(ctx, "Group", "admin", &x)
 	require.Error(t, err)
 	require.Equal(t, ErrNotFound, err)
 
 	y := UniqueNameUser{Name: "Jake", ID: 200}
-	err = db.Save(&y)
+	err = db.Save(ctx, &y)
 	require.NoError(t, err)
 
 	var y2 UniqueNameUser
-	err = db.One("ID", 200, &y2)
+	err = db.One(ctx, "ID", 200, &y2)
 	require.NoError(t, err)
 	require.Equal(t, y, y2)
 
@@ -480,11 +497,11 @@ func TestOne(t *testing.T) {
 	n.ID = "100"
 	n.Name = "John"
 
-	err = db.Save(&n)
+	err = db.Save(ctx, &n)
 	require.NoError(t, err)
 
 	var n2 NestedID
-	err = db.One("ID", "100", &n2)
+	err = db.One(ctx, "ID", "100", &n2)
 	require.NoError(t, err)
 	require.Equal(t, n, n2)
 }
@@ -492,28 +509,29 @@ func TestOne(t *testing.T) {
 func TestOneNotWritable(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := Open(filepath.Join(dir, "rainstorm.db"))
+	ctx := context.Background()
+	db, _ := Open(ctx, filepath.Join(dir, "rainstorm.db"))
 
-	err := db.Save(&User{ID: 10, Name: "John"})
+	err := db.Save(ctx, &User{ID: 10, Name: "John"})
 	require.NoError(t, err)
 
 	db.Close()
 
-	db, _ = Open(filepath.Join(dir, "rainstorm.db"), BoltOptions(0660, &bolt.Options{
+	db, _ = Open(ctx, filepath.Join(dir, "rainstorm.db"), BoltOptions(0660, &bolt.Options{
 		ReadOnly: true,
 	}))
 	defer db.Close()
 
-	err = db.Save(&User{ID: 20, Name: "John"})
+	err = db.Save(ctx, &User{ID: 20, Name: "John"})
 	require.Error(t, err)
 
 	var u User
-	err = db.One("ID", 10, &u)
+	err = db.One(ctx, "ID", 10, &u)
 	require.NoError(t, err)
 	require.Equal(t, 10, u.ID)
 	require.Equal(t, "John", u.Name)
 
-	err = db.One("Name", "John", &u)
+	err = db.One(ctx, "Name", "John", &u)
 	require.NoError(t, err)
 	require.Equal(t, 10, u.ID)
 	require.Equal(t, "John", u.Name)
@@ -523,6 +541,8 @@ func TestRange(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	for i := 0; i < 100; i++ {
 		w := User{
 			Name:        "John",
@@ -531,10 +551,10 @@ func TestRange(t *testing.T) {
 			DateOfBirth: time.Now().Add(-time.Duration(i) * time.Hour),
 			Group:       fmt.Sprintf("Group%03d", i%5),
 		}
-		err := db.Save(&w)
+		err := db.Save(ctx, &w)
 		require.NoError(t, err)
 		z := User{Name: fmt.Sprintf("Zach%03d", i+1), ID: i + 101, Slug: fmt.Sprintf("Zach%03d", i+1)}
-		err = db.Save(&z)
+		err = db.Save(ctx, &z)
 		require.NoError(t, err)
 	}
 
@@ -542,16 +562,16 @@ func TestRange(t *testing.T) {
 	max := "John020"
 	var users []User
 
-	err := db.Range("Slug", min, max, users)
+	err := db.Range(ctx, "Slug", min, max, users)
 	require.Equal(t, ErrSlicePtrNeeded, err)
 
-	err = db.Range("Slug", min, max, &users)
+	err = db.Range(ctx, "Slug", min, max, &users)
 	require.NoError(t, err)
 	require.Len(t, users, 11)
 	require.Equal(t, "John010", users[0].Slug)
 	require.Equal(t, "John020", users[10].Slug)
 
-	err = db.Range("Slug", min, max, &users, Reverse())
+	err = db.Range(ctx, "Slug", min, max, &users, Reverse())
 	require.NoError(t, err)
 	require.Len(t, users, 11)
 	require.Equal(t, "John020", users[0].Slug)
@@ -560,59 +580,59 @@ func TestRange(t *testing.T) {
 	min = "Zach010"
 	max = "Zach020"
 	users = nil
-	err = db.Range("Name", min, max, &users)
+	err = db.Range(ctx, "Name", min, max, &users)
 	require.NoError(t, err)
 	require.Len(t, users, 11)
 	require.Equal(t, "Zach010", users[0].Name)
 	require.Equal(t, "Zach020", users[10].Name)
 
-	err = db.Range("Name", min, max, &users, Reverse())
+	err = db.Range(ctx, "Name", min, max, &users, Reverse())
 	require.NoError(t, err)
 	require.Len(t, users, 11)
 	require.Equal(t, "Zach020", users[0].Name)
 	require.Equal(t, "Zach010", users[10].Name)
 
-	err = db.Range("Name", min, max, &User{})
+	err = db.Range(ctx, "Name", min, max, &User{})
 	require.Error(t, err)
 	require.Equal(t, ErrSlicePtrNeeded, err)
 
 	notTheRightUsers := []UniqueNameUser{}
 
-	err = db.Range("Name", min, max, &notTheRightUsers)
+	err = db.Range(ctx, "Name", min, max, &notTheRightUsers)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(notTheRightUsers))
 
 	users = nil
 
-	err = db.Range("Age", min, max, &users)
+	err = db.Range(ctx, "Age", min, max, &users)
 	require.Error(t, err)
 	require.EqualError(t, err, "not found")
 
-	err = db.Range("Age", 2, 5, &users)
+	err = db.Range(ctx, "Age", 2, 5, &users)
 	require.NoError(t, err)
 	require.Len(t, users, 4)
 
 	dateMin := time.Now().Add(-time.Duration(50) * time.Hour)
 	dateMax := dateMin.Add(time.Duration(3) * time.Hour)
-	err = db.Range("DateOfBirth", dateMin, dateMax, &users)
+	err = db.Range(ctx, "DateOfBirth", dateMin, dateMax, &users)
 	require.NoError(t, err)
 	require.Len(t, users, 3)
 	require.Equal(t, "John050", users[0].Slug)
 	require.Equal(t, "John048", users[2].Slug)
 
-	err = db.Range("Slug", "John010", "John040", &users, Limit(10), Skip(20))
+	err = db.Range(ctx, "Slug", "John010", "John040", &users, Limit(10), Skip(20))
 	require.NoError(t, err)
 	require.Len(t, users, 10)
 	require.Equal(t, 30, users[0].ID)
 	require.Equal(t, 39, users[9].ID)
 
-	err = db.Range("Slug", "John010", "John040", &users, Limit(10), Skip(20), Reverse())
+	err = db.Range(ctx, "Slug", "John010", "John040", &users, Limit(10), Skip(20), Reverse())
 	require.NoError(t, err)
 	require.Len(t, users, 10)
 	require.Equal(t, 20, users[0].ID)
 	require.Equal(t, 11, users[9].ID)
 
-	err = db.Range("Group", "Group002", "Group004", &users)
+	err = db.Range(ctx, "Group", "Group002", "Group004", &users)
 	require.NoError(t, err)
 	require.Len(t, users, 60)
 }
@@ -620,6 +640,8 @@ func TestRange(t *testing.T) {
 func TestPrefix(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
+
+	ctx := context.Background()
 
 	for i := 0; i < 50; i++ {
 		w := User{
@@ -634,54 +656,54 @@ func TestPrefix(t *testing.T) {
 			w.Group = "group200"
 		}
 
-		err := db.Save(&w)
+		err := db.Save(ctx, &w)
 		require.NoError(t, err)
 	}
 
 	var users []User
-	err := db.Prefix("Name", "Jo", users)
+	err := db.Prefix(ctx, "Name", "Jo", users)
 	require.Equal(t, ErrSlicePtrNeeded, err)
 
 	// Using indexes
-	err = db.Prefix("Name", "Jo", &users)
+	err = db.Prefix(ctx, "Name", "Jo", &users)
 	require.NoError(t, err)
 	require.Len(t, users, 10)
 	require.Equal(t, 1, users[0].ID)
 	require.Equal(t, 46, users[9].ID)
 
-	err = db.Prefix("Name", "Ja", &users)
+	err = db.Prefix(ctx, "Name", "Ja", &users)
 	require.NoError(t, err)
 	require.Len(t, users, 40)
 	require.Equal(t, 2, users[0].ID)
 	require.Equal(t, 50, users[39].ID)
 
-	err = db.Prefix("Name", "Ja", &users, Limit(10), Skip(20), Reverse())
+	err = db.Prefix(ctx, "Name", "Ja", &users, Limit(10), Skip(20), Reverse())
 	require.NoError(t, err)
 	require.Len(t, users, 10)
 	require.Equal(t, 25, users[0].ID)
 	require.Equal(t, 14, users[9].ID)
 
 	// Using Select
-	err = db.Prefix("Group", "group1", &users)
+	err = db.Prefix(ctx, "Group", "group1", &users)
 	require.NoError(t, err)
 	require.Len(t, users, 10)
 	require.Equal(t, 1, users[0].ID)
 	require.Equal(t, 46, users[9].ID)
 
-	err = db.Prefix("Group", "group2", &users)
+	err = db.Prefix(ctx, "Group", "group2", &users)
 	require.NoError(t, err)
 	require.Len(t, users, 40)
 	require.Equal(t, 2, users[0].ID)
 	require.Equal(t, 50, users[39].ID)
 
-	err = db.Prefix("Group", "group2", &users, Limit(10), Skip(20), Reverse())
+	err = db.Prefix(ctx, "Group", "group2", &users, Limit(10), Skip(20), Reverse())
 	require.NoError(t, err)
 	require.Len(t, users, 10)
 	require.Equal(t, 25, users[0].ID)
 	require.Equal(t, 14, users[9].ID)
 
 	// Bad value
-	err = db.Prefix("Group", "group3", &users)
+	err = db.Prefix(ctx, "Group", "group3", &users)
 	require.Equal(t, ErrNotFound, err)
 }
 
@@ -689,15 +711,17 @@ func TestPrefixWithID(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	type User struct {
 		ID string
 	}
 
-	require.NoError(t, db.Save(&User{ID: "1"}))
-	require.NoError(t, db.Save(&User{ID: "10"}))
+	require.NoError(t, db.Save(ctx, &User{ID: "1"}))
+	require.NoError(t, db.Save(ctx, &User{ID: "10"}))
 
 	var users []User
 
-	require.NoError(t, db.Prefix("ID", "1", &users))
+	require.NoError(t, db.Prefix(ctx, "ID", "1", &users))
 	require.Len(t, users, 2)
 }

@@ -2,11 +2,12 @@ package rainstorm
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"time"
 
-	"github.com/AndersonBargas/rainstorm/v5/codec"
-	"github.com/AndersonBargas/rainstorm/v5/codec/json"
+	"github.com/AndersonBargas/rainstorm/v6/codec"
+	"github.com/AndersonBargas/rainstorm/v6/codec/json"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -26,7 +27,11 @@ type BucketNamer interface {
 var defaultCodec = json.Codec
 
 // Open opens a database at the given path with optional Rainstorm options.
-func Open(path string, rainstormOptions ...func(*Options) error) (*DB, error) {
+func Open(ctx context.Context, path string, rainstormOptions ...OpenOption) (*DB, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
+
 	var err error
 
 	var opts Options
@@ -67,10 +72,21 @@ func Open(path string, rainstormOptions ...func(*Options) error) (*DB, error) {
 		if err != nil {
 			return nil, err
 		}
+		s.boltOwned = true
+		if opts.postOpenHook != nil {
+			opts.postOpenHook(ctx)
+		}
 	}
 
-	err = s.checkVersion()
+	// Re-check the context after the (cooperative) bbolt open.
+	if err = checkContext(ctx); err != nil {
+		s.cleanupOwned()
+		return nil, err
+	}
+
+	err = s.checkVersion(ctx)
 	if err != nil {
+		s.cleanupOwned()
 		return nil, err
 	}
 
@@ -85,6 +101,19 @@ type DB struct {
 
 	// Bolt is still easily accessible
 	Bolt *bolt.DB
+
+	// boltOwned records whether Rainstorm opened Bolt itself (true) or whether
+	// it was provided via UseDB (false). It drives Open cleanup only in this
+	// phase; the public Close ownership rule is revisited in R6.4.
+	boltOwned bool
+}
+
+// cleanupOwned closes a Rainstorm-owned bolt.DB. It is a no-op for databases
+// provided via UseDB, which remain owned by the caller.
+func (s *DB) cleanupOwned() {
+	if s.boltOwned && s.Bolt != nil {
+		_ = s.Bolt.Close()
+	}
 }
 
 // Close the database
@@ -92,9 +121,9 @@ func (s *DB) Close() error {
 	return s.Bolt.Close()
 }
 
-func (s *DB) checkVersion() error {
+func (s *DB) checkVersion(ctx context.Context) error {
 	var v string
-	err := s.Get(dbinfo, "version", &v)
+	err := s.Get(ctx, dbinfo, "version", &v)
 	if err != nil && err != ErrNotFound {
 		return err
 	}
@@ -102,7 +131,7 @@ func (s *DB) checkVersion() error {
 	// for now, we only set the current version if it doesn't exist.
 	// v1 and v2 database files are compatible.
 	if v == "" {
-		return s.Set(dbinfo, "version", Version)
+		return s.Set(ctx, dbinfo, "version", Version)
 	}
 
 	return nil

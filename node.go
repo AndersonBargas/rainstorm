@@ -1,7 +1,9 @@
 package rainstorm
 
 import (
-	"github.com/AndersonBargas/rainstorm/v5/codec"
+	"context"
+
+	"github.com/AndersonBargas/rainstorm/v6/codec"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -31,7 +33,7 @@ type Node interface {
 	WithTransaction(tx *bolt.Tx) Node
 
 	// Begin starts a new transaction.
-	Begin(writable bool) (Node, error)
+	Begin(ctx context.Context, writable bool) (Node, error)
 
 	// Codec used by this instance of Rainstorm
 	Codec() codec.MarshalUnmarshaler
@@ -98,29 +100,46 @@ func (n *node) Codec() codec.MarshalUnmarshaler {
 
 // Detects if already in transaction or runs a read write transaction.
 // Uses batch mode if enabled.
-func (n *node) readWriteTx(fn func(tx *bolt.Tx) error) error {
+func (n *node) readWriteTx(ctx context.Context, fn func(tx *bolt.Tx) error) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	if n.tx != nil {
 		return fn(n.tx)
 	}
 
 	if n.batchMode {
 		return n.s.Bolt.Batch(func(tx *bolt.Tx) error {
+			if err := checkContext(ctx); err != nil {
+				return err
+			}
 			return fn(tx)
 		})
 	}
 
 	return n.s.Bolt.Update(func(tx *bolt.Tx) error {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
 		return fn(tx)
 	})
 }
 
 // Detects if already in transaction or runs a read transaction.
-func (n *node) readTx(fn func(tx *bolt.Tx) error) error {
+func (n *node) readTx(ctx context.Context, fn func(tx *bolt.Tx) error) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	if n.tx != nil {
 		return fn(n.tx)
 	}
 
 	return n.s.Bolt.View(func(tx *bolt.Tx) error {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
 		return fn(tx)
 	})
 }

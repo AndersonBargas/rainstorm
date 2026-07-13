@@ -2,6 +2,7 @@ package rainstorm
 
 import (
 	"bytes"
+	"context"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -9,25 +10,27 @@ import (
 // A BucketScanner scans a Node for a list of buckets
 type BucketScanner interface {
 	// PrefixScan scans the root buckets for keys matching the given prefix.
-	PrefixScan(prefix string) []Node
-	// PrefixScan scans the buckets in this node for keys matching the given prefix.
-	RangeScan(min, max string) []Node
+	PrefixScan(ctx context.Context, prefix string) ([]Node, error)
+	// RangeScan scans the buckets in this node for keys matching the given range.
+	RangeScan(ctx context.Context, min, max string) ([]Node, error)
 }
 
 // PrefixScan scans the buckets in this node for keys matching the given prefix.
-func (n *node) PrefixScan(prefix string) []Node {
+func (n *node) PrefixScan(ctx context.Context, prefix string) ([]Node, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
+
 	if n.tx != nil {
-		return n.prefixScan(n.tx, prefix)
+		return n.prefixScan(n.tx, prefix), nil
 	}
 
 	var nodes []Node
 
-	n.readTx(func(tx *bolt.Tx) error {
+	return nodes, n.readTx(ctx, func(tx *bolt.Tx) error {
 		nodes = n.prefixScan(tx, prefix)
 		return nil
 	})
-
-	return nodes
 }
 
 func (n *node) prefixScan(tx *bolt.Tx, prefix string) []Node {
@@ -53,19 +56,21 @@ func (n *node) prefixScan(tx *bolt.Tx, prefix string) []Node {
 }
 
 // RangeScan scans the buckets in this node  over a range such as a sortable time range.
-func (n *node) RangeScan(min, max string) []Node {
+func (n *node) RangeScan(ctx context.Context, min, max string) ([]Node, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
+
 	if n.tx != nil {
-		return n.rangeScan(n.tx, min, max)
+		return n.rangeScan(n.tx, min, max), nil
 	}
 
 	var nodes []Node
 
-	n.readTx(func(tx *bolt.Tx) error {
+	return nodes, n.readTx(ctx, func(tx *bolt.Tx) error {
 		nodes = n.rangeScan(tx, min, max)
 		return nil
 	})
-
-	return nodes
 }
 
 func (n *node) rangeScan(tx *bolt.Tx, min, max string) []Node {

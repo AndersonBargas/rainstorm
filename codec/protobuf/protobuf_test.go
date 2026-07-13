@@ -1,12 +1,13 @@
 package protobuf
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/AndersonBargas/rainstorm/v5"
-	"github.com/AndersonBargas/rainstorm/v5/codec/internal"
+	"github.com/AndersonBargas/rainstorm/v6"
+	"github.com/AndersonBargas/rainstorm/v6/codec/internal"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,12 +21,13 @@ func TestProtobuf(t *testing.T) {
 func TestSave(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"), rainstorm.Codec(Codec))
+	ctx := context.Background()
+	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"), rainstorm.Codec(Codec))
 	u1 := SimpleUser{ID: 1, Name: "John"}
-	err := db.Save(&u1)
+	err := db.Save(ctx, &u1)
 	require.NoError(t, err)
 	u2 := SimpleUser{}
-	err = db.One("ID", uint64(1), &u2)
+	err = db.One(ctx, "ID", uint64(1), &u2)
 	require.NoError(t, err)
 	require.Equal(t, u2.Name, u1.Name)
 }
@@ -33,11 +35,12 @@ func TestSave(t *testing.T) {
 func TestGetSet(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"), rainstorm.Codec(Codec))
-	err := db.Set("bucket", "key", "value")
+	ctx := context.Background()
+	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"), rainstorm.Codec(Codec))
+	err := db.Set(ctx, "bucket", "key", "value")
 	require.NoError(t, err)
 	var s string
-	err = db.Get("bucket", "key", &s)
+	err = db.Get(ctx, "bucket", "key", &s)
 	require.NoError(t, err)
 	require.Equal(t, "value", s)
 }

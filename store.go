@@ -2,10 +2,11 @@ package rainstorm
 
 import (
 	"bytes"
+	"context"
 	"reflect"
 
-	"github.com/AndersonBargas/rainstorm/v5/index"
-	"github.com/AndersonBargas/rainstorm/v5/q"
+	"github.com/AndersonBargas/rainstorm/v6/index"
+	"github.com/AndersonBargas/rainstorm/v6/q"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -13,36 +14,40 @@ import (
 type TypeStore interface {
 	Finder
 	// Init creates the indexes and buckets for a given structure
-	Init(data interface{}) error
+	Init(ctx context.Context, data any) error
 
 	// ReIndex rebuilds all the indexes of a bucket
-	ReIndex(data interface{}) error
+	ReIndex(ctx context.Context, data any) error
 
 	// Save a structure
-	Save(data interface{}) error
+	Save(ctx context.Context, data any) error
 
 	// Update a structure
-	Update(data interface{}) error
+	Update(ctx context.Context, data any) error
 
 	// UpdateField updates a single field
-	UpdateField(data interface{}, fieldName string, value interface{}) error
+	UpdateField(ctx context.Context, data any, fieldName string, value any) error
 
 	// Drop a bucket
-	Drop(data interface{}) error
+	Drop(ctx context.Context, data any) error
 
 	// DeleteStruct deletes a structure from the associated bucket
-	DeleteStruct(data interface{}) error
+	DeleteStruct(ctx context.Context, data any) error
 }
 
 // Init creates the indexes and buckets for a given structure
-func (n *node) Init(data interface{}) error {
+func (n *node) Init(ctx context.Context, data any) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	v := reflect.ValueOf(data)
 	cfg, err := extract(&v)
 	if err != nil {
 		return err
 	}
 
-	return n.readWriteTx(func(tx *bolt.Tx) error {
+	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
 		return n.init(tx, cfg)
 	})
 }
@@ -82,7 +87,11 @@ func (n *node) init(tx *bolt.Tx, cfg *structConfig) error {
 	return nil
 }
 
-func (n *node) ReIndex(data interface{}) error {
+func (n *node) ReIndex(ctx context.Context, data any) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	ref := reflect.ValueOf(data)
 
 	if !ref.IsValid() || ref.Kind() != reflect.Ptr || ref.Elem().Kind() != reflect.Struct {
@@ -94,14 +103,17 @@ func (n *node) ReIndex(data interface{}) error {
 		return err
 	}
 
-	return n.readWriteTx(func(tx *bolt.Tx) error {
-		return n.reIndex(tx, data, cfg)
+	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
+		return n.reIndex(ctx, tx, data, cfg)
 	})
 }
 
-func (n *node) reIndex(tx *bolt.Tx, data interface{}, cfg *structConfig) error {
+func (n *node) reIndex(ctx context.Context, tx *bolt.Tx, data interface{}, cfg *structConfig) error {
 	root := n.WithTransaction(tx)
-	nodes := root.From(cfg.Name).PrefixScan(indexPrefix)
+	nodes, err := root.From(cfg.Name).PrefixScan(ctx, indexPrefix)
+	if err != nil {
+		return err
+	}
 	bucket := root.GetBucket(tx, cfg.Name)
 	if bucket == nil {
 		return ErrNotFound
@@ -116,18 +128,18 @@ func (n *node) reIndex(tx *bolt.Tx, data interface{}, cfg *structConfig) error {
 		}
 	}
 
-	total, err := root.Count(data)
+	total, err := root.Count(ctx, data)
 	if err != nil {
 		return err
 	}
 
 	for i := 0; i < total; i++ {
-		err = root.Select(q.True()).Skip(i).First(data)
+		err = root.Select(q.True()).Skip(i).First(ctx, data)
 		if err != nil {
 			return err
 		}
 
-		err = root.Update(data)
+		err = root.Update(ctx, data)
 		if err != nil {
 			return err
 		}
@@ -137,7 +149,11 @@ func (n *node) reIndex(tx *bolt.Tx, data interface{}, cfg *structConfig) error {
 }
 
 // Save a structure
-func (n *node) Save(data interface{}) error {
+func (n *node) Save(ctx context.Context, data any) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	ref := reflect.ValueOf(data)
 
 	if !ref.IsValid() || ref.Kind() != reflect.Ptr || ref.Elem().Kind() != reflect.Struct {
@@ -155,7 +171,7 @@ func (n *node) Save(data interface{}) error {
 		}
 	}
 
-	return n.readWriteTx(func(tx *bolt.Tx) error {
+	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
 		return n.save(tx, cfg, data, false)
 	})
 }
@@ -257,8 +273,8 @@ func (n *node) save(tx *bolt.Tx, cfg *structConfig, data interface{}, update boo
 }
 
 // Update a structure
-func (n *node) Update(data interface{}) error {
-	return n.update(data, func(ref *reflect.Value, current *reflect.Value, cfg *structConfig) error {
+func (n *node) Update(ctx context.Context, data any) error {
+	return n.update(ctx, data, func(ref *reflect.Value, current *reflect.Value, cfg *structConfig) error {
 		numfield := ref.NumField()
 		for i := 0; i < numfield; i++ {
 			f := ref.Field(i)
@@ -281,8 +297,8 @@ func (n *node) Update(data interface{}) error {
 }
 
 // UpdateField updates a single field
-func (n *node) UpdateField(data interface{}, fieldName string, value interface{}) error {
-	return n.update(data, func(ref *reflect.Value, current *reflect.Value, cfg *structConfig) error {
+func (n *node) UpdateField(ctx context.Context, data any, fieldName string, value any) error {
+	return n.update(ctx, data, func(ref *reflect.Value, current *reflect.Value, cfg *structConfig) error {
 		f := current.FieldByName(fieldName)
 		if !f.IsValid() {
 			return ErrNotFound
@@ -306,7 +322,11 @@ func (n *node) UpdateField(data interface{}, fieldName string, value interface{}
 	})
 }
 
-func (n *node) update(data interface{}, fn func(*reflect.Value, *reflect.Value, *structConfig) error) error {
+func (n *node) update(ctx context.Context, data interface{}, fn func(*reflect.Value, *reflect.Value, *structConfig) error) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	ref := reflect.ValueOf(data)
 	if !ref.IsValid() || ref.Kind() != reflect.Ptr || ref.Elem().Kind() != reflect.Struct {
 		return ErrStructPtrNeeded
@@ -323,8 +343,8 @@ func (n *node) update(data interface{}, fn func(*reflect.Value, *reflect.Value, 
 
 	current := reflect.New(reflect.Indirect(ref).Type())
 
-	return n.readWriteTx(func(tx *bolt.Tx) error {
-		err = n.WithTransaction(tx).One(cfg.ID.Name, cfg.ID.Value.Interface(), current.Interface())
+	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
+		err = n.WithTransaction(tx).One(ctx, cfg.ID.Name, cfg.ID.Value.Interface(), current.Interface())
 		if err != nil {
 			return err
 		}
@@ -341,7 +361,11 @@ func (n *node) update(data interface{}, fn func(*reflect.Value, *reflect.Value, 
 }
 
 // Drop a bucket
-func (n *node) Drop(data interface{}) error {
+func (n *node) Drop(ctx context.Context, data any) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	var bucketName string
 
 	v := reflect.ValueOf(data)
@@ -356,7 +380,7 @@ func (n *node) Drop(data interface{}) error {
 		bucketName = v.Interface().(string)
 	}
 
-	return n.readWriteTx(func(tx *bolt.Tx) error {
+	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
 		return n.drop(tx, bucketName)
 	})
 }
@@ -371,7 +395,11 @@ func (n *node) drop(tx *bolt.Tx, bucketName string) error {
 }
 
 // DeleteStruct deletes a structure from the associated bucket
-func (n *node) DeleteStruct(data interface{}) error {
+func (n *node) DeleteStruct(ctx context.Context, data any) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	ref := reflect.ValueOf(data)
 
 	if !ref.IsValid() || ref.Kind() != reflect.Ptr || ref.Elem().Kind() != reflect.Struct {
@@ -388,7 +416,7 @@ func (n *node) DeleteStruct(data interface{}) error {
 		return err
 	}
 
-	return n.readWriteTx(func(tx *bolt.Tx) error {
+	return n.readWriteTx(ctx, func(tx *bolt.Tx) error {
 		return n.deleteStruct(tx, cfg, id)
 	})
 }

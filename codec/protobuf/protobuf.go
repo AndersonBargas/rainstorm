@@ -4,7 +4,7 @@ package protobuf
 import (
 	"errors"
 
-	"github.com/AndersonBargas/rainstorm/v5/codec/json"
+	"github.com/AndersonBargas/rainstorm/v6/codec/json"
 	"github.com/golang/protobuf/proto"
 )
 

@@ -1,10 +1,11 @@
 package rainstorm
 
 import (
+	"context"
 	"testing"
 
-	"github.com/AndersonBargas/rainstorm/v5/codec/gob"
-	"github.com/AndersonBargas/rainstorm/v5/codec/json"
+	"github.com/AndersonBargas/rainstorm/v6/codec/gob"
+	"github.com/AndersonBargas/rainstorm/v6/codec/json"
 	"github.com/stretchr/testify/require"
 	bolt "go.etcd.io/bbolt"
 )
@@ -30,18 +31,20 @@ func TestNodeWithTransaction(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	var user User
 	db.Bolt.Update(func(tx *bolt.Tx) error {
 		dbx := db.WithTransaction(tx)
-		err := dbx.Save(&User{ID: 10, Name: "John"})
+		err := dbx.Save(ctx, &User{ID: 10, Name: "John"})
 		require.NoError(t, err)
-		err = dbx.One("ID", 10, &user)
+		err = dbx.One(ctx, "ID", 10, &user)
 		require.NoError(t, err)
 		require.Equal(t, "John", user.Name)
 		return nil
 	})
 
-	err := db.One("ID", 10, &user)
+	err := db.One(ctx, "ID", 10, &user)
 	require.NoError(t, err)
 }
 
@@ -66,6 +69,8 @@ func TestNodeWithCodec(t *testing.T) {
 		db, cleanup := createDB(t)
 		defer cleanup()
 
+		ctx := context.Background()
+
 		type User struct {
 			ID   int
 			Name string `rainstorm:"index"`
@@ -79,57 +84,57 @@ func TestNodeWithCodec(t *testing.T) {
 		}
 
 		n := db.From("a").WithCodec(gob.Codec)
-		err := n.Set("gobBucket", "key", &User{ID: 10, Name: "John"})
+		err := n.Set(ctx, "gobBucket", "key", &User{ID: 10, Name: "John"})
 		require.NoError(t, err)
-		b, err := n.GetBytes("gobBucket", "key")
+		b, err := n.GetBytes(ctx, "gobBucket", "key")
 		require.NoError(t, err)
 		requireBytesEqual(b, User{ID: 10, Name: "John"})
 
 		id, err := toBytes(10, n.(*node).codec)
 		require.NoError(t, err)
 
-		err = n.Save(&User{ID: 10, Name: "John"})
+		err = n.Save(ctx, &User{ID: 10, Name: "John"})
 		require.NoError(t, err)
-		b, err = n.GetBytes("User", id)
+		b, err = n.GetBytes(ctx, "User", id)
 		require.NoError(t, err)
 		requireBytesEqual(b, User{ID: 10, Name: "John"})
 
-		err = n.Update(&User{ID: 10, Name: "Jack"})
+		err = n.Update(ctx, &User{ID: 10, Name: "Jack"})
 		require.NoError(t, err)
-		b, err = n.GetBytes("User", id)
+		b, err = n.GetBytes(ctx, "User", id)
 		require.NoError(t, err)
 		requireBytesEqual(b, User{ID: 10, Name: "Jack"})
 
-		err = n.UpdateField(&User{ID: 10}, "Name", "John")
+		err = n.UpdateField(ctx, &User{ID: 10}, "Name", "John")
 		require.NoError(t, err)
-		b, err = n.GetBytes("User", id)
+		b, err = n.GetBytes(ctx, "User", id)
 		require.NoError(t, err)
 		requireBytesEqual(b, User{ID: 10, Name: "John"})
 
 		var users []User
-		err = n.Find("Name", "John", &users)
+		err = n.Find(ctx, "Name", "John", &users)
 		require.NoError(t, err)
 
 		var user User
-		err = n.One("Name", "John", &user)
+		err = n.One(ctx, "Name", "John", &user)
 		require.NoError(t, err)
 
-		err = n.AllByIndex("Name", &users)
+		err = n.AllByIndex(ctx, "Name", &users)
 		require.NoError(t, err)
 
-		err = n.All(&users)
+		err = n.All(ctx, &users)
 		require.NoError(t, err)
 
-		err = n.Range("Name", "J", "K", &users)
+		err = n.Range(ctx, "Name", "J", "K", &users)
 		require.NoError(t, err)
 
-		err = n.Prefix("Name", "J", &users)
+		err = n.Prefix(ctx, "Name", "J", &users)
 		require.NoError(t, err)
 
-		_, err = n.Count(new(User))
+		_, err = n.Count(ctx, new(User))
 		require.NoError(t, err)
 
-		err = n.Select().Find(&users)
+		err = n.Select().Find(ctx, &users)
 		require.NoError(t, err)
 	})
 }

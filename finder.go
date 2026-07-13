@@ -1,40 +1,41 @@
 package rainstorm
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 
-	"github.com/AndersonBargas/rainstorm/v5/index"
-	"github.com/AndersonBargas/rainstorm/v5/q"
+	"github.com/AndersonBargas/rainstorm/v6/index"
+	"github.com/AndersonBargas/rainstorm/v6/q"
 	bolt "go.etcd.io/bbolt"
 )
 
 // A Finder can fetch types from BoltDB.
 type Finder interface {
 	// One returns one record by the specified index
-	One(fieldName string, value interface{}, to interface{}) error
+	One(ctx context.Context, fieldName string, value any, to any) error
 
 	// Find returns one or more records by the specified index
-	Find(fieldName string, value interface{}, to interface{}, options ...func(q *index.Options)) error
+	Find(ctx context.Context, fieldName string, value any, to any, options ...FindOption) error
 
 	// AllByIndex gets all the records of a bucket that are indexed in the specified index
-	AllByIndex(fieldName string, to interface{}, options ...func(*index.Options)) error
+	AllByIndex(ctx context.Context, fieldName string, to any, options ...FindOption) error
 
 	// All gets all the records of a bucket.
 	// If there are no records it returns no error and the 'to' parameter is set to an empty slice.
-	All(to interface{}, options ...func(*index.Options)) error
+	All(ctx context.Context, to any, options ...FindOption) error
 
 	// Select a list of records that match a list of matchers. Doesn't use indexes.
 	Select(matchers ...q.Matcher) Query
 
 	// Range returns one or more records by the specified index within the specified range
-	Range(fieldName string, min, max, to interface{}, options ...func(*index.Options)) error
+	Range(ctx context.Context, fieldName string, min any, max any, to any, options ...FindOption) error
 
 	// Prefix returns one or more records whose given field starts with the specified prefix.
-	Prefix(fieldName string, prefix string, to interface{}, options ...func(*index.Options)) error
+	Prefix(ctx context.Context, fieldName string, prefix string, to any, options ...FindOption) error
 
 	// Count counts all the records of a bucket
-	Count(data interface{}) (int, error)
+	Count(ctx context.Context, data any) (int, error)
 }
 
 // resolveBucketName returns the bucket name, falling back to the
@@ -58,7 +59,11 @@ func (n *node) hasBucketName(sink sink) bool {
 }
 
 // One returns one record by the specified index
-func (n *node) One(fieldName string, value interface{}, to interface{}) error {
+func (n *node) One(ctx context.Context, fieldName string, value any, to any) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	sink, err := newFirstSink(n, to)
 	if err != nil {
 		return err
@@ -85,13 +90,9 @@ func (n *node) One(fieldName string, value interface{}, to interface{}) error {
 		query := newQuery(n, q.StrictEq(fieldName, value))
 		query.Limit(1)
 
-		if n.tx != nil {
-			err = query.query(n.tx, sink)
-		} else {
-			err = n.s.Bolt.View(func(tx *bolt.Tx) error {
-				return query.query(tx, sink)
-			})
-		}
+		err = n.readTx(ctx, func(tx *bolt.Tx) error {
+			return query.query(tx, sink)
+		})
 
 		if err != nil {
 			return err
@@ -105,7 +106,7 @@ func (n *node) One(fieldName string, value interface{}, to interface{}) error {
 		return err
 	}
 
-	return n.readTx(func(tx *bolt.Tx) error {
+	return n.readTx(ctx, func(tx *bolt.Tx) error {
 		return n.one(tx, bucketName, fieldName, cfg, to, val, field.IsID)
 	})
 }
@@ -144,7 +145,11 @@ func (n *node) one(tx *bolt.Tx, bucketName, fieldName string, cfg *structConfig,
 }
 
 // Find returns one or more records by the specified index
-func (n *node) Find(fieldName string, value interface{}, to interface{}, options ...func(q *index.Options)) error {
+func (n *node) Find(ctx context.Context, fieldName string, value any, to any, options ...FindOption) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	sink, err := newListSink(n, to)
 	if err != nil {
 		return err
@@ -174,7 +179,7 @@ func (n *node) Find(fieldName string, value interface{}, to interface{}, options
 			query.Reverse()
 		}
 
-		err = n.readTx(func(tx *bolt.Tx) error {
+		err = n.readTx(ctx, func(tx *bolt.Tx) error {
 			return query.query(tx, sink)
 		})
 
@@ -190,7 +195,7 @@ func (n *node) Find(fieldName string, value interface{}, to interface{}, options
 		return err
 	}
 
-	return n.readTx(func(tx *bolt.Tx) error {
+	return n.readTx(ctx, func(tx *bolt.Tx) error {
 		return n.find(tx, bucketName, fieldName, cfg, sink, val, opts)
 	})
 }
@@ -231,9 +236,13 @@ func (n *node) find(tx *bolt.Tx, bucketName, fieldName string, cfg *structConfig
 }
 
 // AllByIndex gets all the records of a bucket that are indexed in the specified index
-func (n *node) AllByIndex(fieldName string, to interface{}, options ...func(*index.Options)) error {
+func (n *node) AllByIndex(ctx context.Context, fieldName string, to any, options ...FindOption) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	if fieldName == "" {
-		return n.All(to, options...)
+		return n.All(ctx, to, options...)
 	}
 
 	ref := reflect.ValueOf(to)
@@ -256,7 +265,7 @@ func (n *node) AllByIndex(fieldName string, to interface{}, options ...func(*ind
 	}
 
 	if cfg.ID.Name == fieldName {
-		return n.All(to, options...)
+		return n.All(ctx, to, options...)
 	}
 
 	opts := index.NewOptions()
@@ -264,7 +273,7 @@ func (n *node) AllByIndex(fieldName string, to interface{}, options ...func(*ind
 		fn(opts)
 	}
 
-	return n.readTx(func(tx *bolt.Tx) error {
+	return n.readTx(ctx, func(tx *bolt.Tx) error {
 		return n.allByIndex(tx, fieldName, cfg, &ref, opts)
 	})
 }
@@ -313,7 +322,11 @@ func (n *node) allByIndex(tx *bolt.Tx, fieldName string, cfg *structConfig, ref 
 
 // All gets all the records of a bucket.
 // If there are no records it returns no error and the 'to' parameter is set to an empty slice.
-func (n *node) All(to interface{}, options ...func(*index.Options)) error {
+func (n *node) All(ctx context.Context, to any, options ...FindOption) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	opts := index.NewOptions()
 	for _, fn := range options {
 		fn(opts)
@@ -324,7 +337,7 @@ func (n *node) All(to interface{}, options ...func(*index.Options)) error {
 		query.Reverse()
 	}
 
-	err := query.Find(to)
+	err := query.Find(ctx, to)
 	if err != nil && err != ErrNotFound {
 		return err
 	}
@@ -338,7 +351,11 @@ func (n *node) All(to interface{}, options ...func(*index.Options)) error {
 }
 
 // Range returns one or more records by the specified index within the specified range
-func (n *node) Range(fieldName string, min, max, to interface{}, options ...func(*index.Options)) error {
+func (n *node) Range(ctx context.Context, fieldName string, min any, max any, to any, options ...FindOption) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	sink, err := newListSink(n, to)
 	if err != nil {
 		return err
@@ -370,7 +387,7 @@ func (n *node) Range(fieldName string, min, max, to interface{}, options ...func
 			query.Reverse()
 		}
 
-		err = n.readTx(func(tx *bolt.Tx) error {
+		err = n.readTx(ctx, func(tx *bolt.Tx) error {
 			return query.query(tx, sink)
 		})
 
@@ -391,7 +408,7 @@ func (n *node) Range(fieldName string, min, max, to interface{}, options ...func
 		return err
 	}
 
-	return n.readTx(func(tx *bolt.Tx) error {
+	return n.readTx(ctx, func(tx *bolt.Tx) error {
 		return n.rnge(tx, bucketName, fieldName, cfg, sink, mn, mx, opts)
 	})
 }
@@ -430,7 +447,11 @@ func (n *node) rnge(tx *bolt.Tx, bucketName, fieldName string, cfg *structConfig
 }
 
 // Prefix returns one or more records whose given field starts with the specified prefix.
-func (n *node) Prefix(fieldName string, prefix string, to interface{}, options ...func(*index.Options)) error {
+func (n *node) Prefix(ctx context.Context, fieldName string, prefix string, to any, options ...FindOption) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	sink, err := newListSink(n, to)
 	if err != nil {
 		return err
@@ -462,7 +483,7 @@ func (n *node) Prefix(fieldName string, prefix string, to interface{}, options .
 			query.Reverse()
 		}
 
-		err = n.readTx(func(tx *bolt.Tx) error {
+		err = n.readTx(ctx, func(tx *bolt.Tx) error {
 			return query.query(tx, sink)
 		})
 
@@ -478,7 +499,7 @@ func (n *node) Prefix(fieldName string, prefix string, to interface{}, options .
 		return err
 	}
 
-	return n.readTx(func(tx *bolt.Tx) error {
+	return n.readTx(ctx, func(tx *bolt.Tx) error {
 		return n.prefix(tx, bucketName, fieldName, cfg, sink, prfx, opts)
 	})
 }
@@ -517,6 +538,6 @@ func (n *node) prefix(tx *bolt.Tx, bucketName, fieldName string, cfg *structConf
 }
 
 // Count counts all the records of a bucket
-func (n *node) Count(data interface{}) (int, error) {
-	return n.Select().Count(data)
+func (n *node) Count(ctx context.Context, data any) (int, error) {
+	return n.Select().Count(ctx, data)
 }
