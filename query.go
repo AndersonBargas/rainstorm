@@ -46,10 +46,14 @@ type Query interface {
 	// Returns all the records without decoding them
 	Raw(ctx context.Context) ([][]byte, error)
 
-	// Execute the given function for each raw element
+	// Execute the given function for each raw element.
+	// If the callback returns an error, processing stops and that error is returned.
+	// Cancellation prevents further callbacks but does not undo callbacks already executed.
 	RawEach(ctx context.Context, fn func(key, value []byte) error) error
 
-	// Execute the given function for each element
+	// Execute the given function for each element.
+	// If the callback returns an error, processing stops and that error is returned.
+	// Cancellation prevents further callbacks but does not undo callbacks already executed.
 	Each(ctx context.Context, kind any, fn func(any) error) error
 }
 
@@ -175,6 +179,10 @@ func (q *query) RawEach(ctx context.Context, fn func(key, value []byte) error) e
 		return err
 	}
 
+	if fn == nil {
+		return ErrNilParam
+	}
+
 	sink := newRawSink()
 
 	sink.execFn = fn
@@ -185,6 +193,10 @@ func (q *query) RawEach(ctx context.Context, fn func(key, value []byte) error) e
 func (q *query) Each(ctx context.Context, kind any, fn func(any) error) error {
 	if err := checkContext(ctx); err != nil {
 		return err
+	}
+
+	if fn == nil {
+		return ErrNilParam
 	}
 
 	sink, err := newEachSink(kind)
@@ -203,13 +215,25 @@ func (q *query) runQuery(ctx context.Context, sink sink) error {
 	}
 
 	if q.node.tx != nil {
-		return q.query(ctx, q.node.tx, sink)
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+		if sink.readOnly() {
+			// q.query performs the final check before publishing read results.
+			// Do not turn a successful publication into a cancellation afterward.
+			return q.query(ctx, q.node.tx, sink)
+		}
+		if err := q.query(ctx, q.node.tx, sink); err != nil {
+			return err
+		}
+		return checkContext(ctx)
 	}
 	if sink.readOnly() {
 		return q.node.s.Bolt.View(func(tx *bolt.Tx) error {
 			if err := checkContext(ctx); err != nil {
 				return err
 			}
+			// q.query performs the final check before publishing read results.
 			return q.query(ctx, tx, sink)
 		})
 	}
@@ -217,11 +241,24 @@ func (q *query) runQuery(ctx context.Context, sink sink) error {
 		if err := checkContext(ctx); err != nil {
 			return err
 		}
-		return q.query(ctx, tx, sink)
+		err := q.query(ctx, tx, sink)
+		if err != nil {
+			return err
+		}
+		// Check before commit — the Bolt callback return value
+		// determines commit or rollback.
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
 func (q *query) query(ctx context.Context, tx *bolt.Tx, sink sink) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	bucketName := q.bucket
 	if bucketName == "" {
 		bucketName = sink.bucketName()
@@ -230,10 +267,22 @@ func (q *query) query(ctx context.Context, tx *bolt.Tx, sink sink) error {
 	if bucketName == "" && len(q.node.rootBucket) == 0 {
 		return ErrNoName
 	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	bucket := q.node.GetBucket(tx, bucketName)
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	if q.limit == 0 {
-		return sink.flush()
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+		return sink.flush(ctx)
 	}
 
 	sorter := newSorter(q.node, sink)
@@ -242,8 +291,16 @@ func (q *query) query(ctx context.Context, tx *bolt.Tx, sink sink) error {
 	sorter.skip = q.skip
 	sorter.limit = q.limit
 	if bucket != nil {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		c := internal.Cursor{C: bucket.Cursor(), Reverse: q.reverse}
 		for k, v := c.First(); k != nil; k, v = c.Next() {
+			if err := checkContext(ctx); err != nil {
+				return err
+			}
+
 			if v == nil {
 				continue
 			}
@@ -253,10 +310,18 @@ func (q *query) query(ctx context.Context, tx *bolt.Tx, sink sink) error {
 				return err
 			}
 
+			if err := checkContext(ctx); err != nil {
+				return err
+			}
+
 			if stop {
 				break
 			}
 		}
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	return sorter.flush(ctx)

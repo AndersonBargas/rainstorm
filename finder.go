@@ -98,7 +98,7 @@ func (n *node) One(ctx context.Context, fieldName string, value any, to any) err
 			return err
 		}
 
-		return sink.flush()
+		return sink.flush(ctx)
 	}
 
 	val, err := toBytes(value, n.codec)
@@ -236,7 +236,7 @@ func (n *node) Find(ctx context.Context, fieldName string, value any, to any, op
 			return err
 		}
 
-		return sink.flush()
+		return sink.flush(ctx)
 	}
 
 	val, err := toBytes(value, n.codec)
@@ -529,7 +529,7 @@ func (n *node) Range(ctx context.Context, fieldName string, min any, max any, to
 			return err
 		}
 
-		return sink.flush()
+		return sink.flush(ctx)
 	}
 
 	mn, err := toBytes(min, n.codec)
@@ -672,7 +672,7 @@ func (n *node) Prefix(ctx context.Context, fieldName string, prefix string, to a
 			return err
 		}
 
-		return sink.flush()
+		return sink.flush(ctx)
 	}
 
 	prfx, err := toBytes(prefix, n.codec)
