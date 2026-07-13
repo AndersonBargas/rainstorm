@@ -370,7 +370,7 @@ func TestDynamicStructDelete(t *testing.T) {
 
 	// Verify deleted
 	err = node.One(ctx, "ID", "key-1", reflect.New(dynType).Interface())
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 }
 
 // ============================================================================
@@ -454,7 +454,7 @@ func TestExplicitBucketFromSave(t *testing.T) {
 
 	// Verify it's NOT in the default bucket
 	err = db.One(ctx, "ID", 1, &u2)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 }
 
 // ============================================================================
@@ -482,7 +482,7 @@ func TestBucketNamerInterface(t *testing.T) {
 
 	// Verify it's NOT accessible via the type name "CustomBucketUser" bucket
 	err = db.From("CustomBucketUser").One(ctx, "ID", 1, &u2)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 }
 
 // ============================================================================

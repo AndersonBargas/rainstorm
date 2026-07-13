@@ -2,6 +2,7 @@ package rainstorm
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"sort"
 	"time"
@@ -649,7 +650,7 @@ func (d *deleteSink) add(ctx context.Context, i *item) error {
 
 		err = idx.RemoveID(ctx, i.k)
 		if err != nil {
-			if err == index.ErrNotFound {
+			if errors.Is(err, index.ErrNotFound) {
 				return ErrNotFound
 			}
 			return err

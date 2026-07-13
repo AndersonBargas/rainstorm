@@ -133,7 +133,7 @@ func TestSelectFindSkip(t *testing.T) {
 		),
 	)).Skip(1000).Find(ctx, &scores)
 	require.Error(t, err)
-	require.True(t, ErrNotFound == err)
+	require.ErrorIs(t, err, ErrNotFound)
 	require.Len(t, scores, 0)
 }
 
@@ -177,7 +177,7 @@ func TestSelectFindLimit(t *testing.T) {
 		),
 	)).Limit(0).Find(ctx, &scores)
 	require.Error(t, err)
-	require.True(t, ErrNotFound == err)
+	require.ErrorIs(t, err, ErrNotFound)
 	require.Len(t, scores, 0)
 }
 
@@ -460,7 +460,7 @@ func TestSelectDelete(t *testing.T) {
 	var user User
 	err = db.One(ctx, "Name", "John6", &user)
 	require.Error(t, err)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.One(ctx, "Name", "John4", &user)
 	require.NoError(t, err)

@@ -23,7 +23,7 @@ func TestExtractNoTags(t *testing.T) {
 	r := reflect.ValueOf(&s)
 	_, err := extract(&r)
 	require.Error(t, err)
-	require.Equal(t, ErrNoID, err)
+	require.ErrorIs(t, err, ErrNoID)
 }
 
 func TestExtractBadTags(t *testing.T) {
@@ -31,7 +31,7 @@ func TestExtractBadTags(t *testing.T) {
 	r := reflect.ValueOf(&s)
 	infos, err := extract(&r)
 	require.Error(t, err)
-	require.Equal(t, ErrUnknownTag, err)
+	require.ErrorIs(t, err, ErrUnknownTag)
 	require.Nil(t, infos)
 }
 

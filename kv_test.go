@@ -37,22 +37,22 @@ func TestGet(t *testing.T) {
 
 	var hand int
 	err = db.Get(ctx, "wallet", "100 bucks", &hand)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.Set(ctx, "wallet", "10 bucks", 10)
 	require.NoError(t, err)
 
 	err = db.Get(ctx, "wallet", "100 bucks", &hand)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.Get(ctx, "logs", tm, nil)
-	require.Equal(t, ErrPtrNeeded, err)
+	require.ErrorIs(t, err, ErrPtrNeeded)
 
 	err = db.Get(ctx, "", nil, nil)
-	require.Equal(t, ErrPtrNeeded, err)
+	require.ErrorIs(t, err, ErrPtrNeeded)
 
 	err = db.Get(ctx, "", "100 bucks", &hand)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 }
 
 func TestGetBytes(t *testing.T) {
@@ -69,7 +69,7 @@ func TestGetBytes(t *testing.T) {
 	require.Equal(t, []byte("hi"), val)
 
 	_, err = db.GetBytes(ctx, "trash", "b")
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 }
 
 func TestSet(t *testing.T) {
@@ -138,7 +138,7 @@ func TestSetMetadata(t *testing.T) {
 	require.NoError(t, err)
 	n := db.WithCodec(gob.Codec)
 	err = n.Set(ctx, "User", 10, &w)
-	require.Equal(t, ErrDifferentCodec, err)
+	require.ErrorIs(t, err, ErrDifferentCodec)
 }
 
 func TestDelete(t *testing.T) {
@@ -154,9 +154,9 @@ func TestDelete(t *testing.T) {
 	err = db.Delete(ctx, "files", "myfile.csv")
 	require.NoError(t, err)
 	err = db.Delete(ctx, "i don't exist", "myfile.csv")
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 	err = db.Delete(ctx, "", nil)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 }
 
 func TestKeyExists(t *testing.T) {
@@ -180,10 +180,10 @@ func TestKeyExists(t *testing.T) {
 	require.False(t, exists)
 
 	exists, err = db.KeyExists(ctx, "i don't exist", "myfile.csv")
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 	require.False(t, exists)
 
 	exists, err = db.KeyExists(ctx, "", nil)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 	require.False(t, exists)
 }

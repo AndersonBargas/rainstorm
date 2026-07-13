@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"time"
 
 	"github.com/AndersonBargas/rainstorm/v6/codec"
@@ -157,7 +158,7 @@ func (s *DB) Close() error {
 func (s *DB) checkVersion(ctx context.Context) error {
 	var v string
 	err := s.Get(ctx, dbinfo, "version", &v)
-	if err != nil && err != ErrNotFound {
+	if err != nil && !errors.Is(err, ErrNotFound) {
 		return err
 	}
 

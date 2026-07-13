@@ -2,6 +2,7 @@ package rainstorm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -133,7 +134,7 @@ func (n *node) one(ctx context.Context, tx *bolt.Tx, bucketName, fieldName strin
 	if !skipIndex {
 		idx, err := getIndex(bucket, cfg.Fields[fieldName].Index, fieldName)
 		if err != nil {
-			if err == index.ErrNotFound {
+			if errors.Is(err, index.ErrNotFound) {
 				return ErrNotFound
 			}
 			return err
@@ -278,7 +279,7 @@ func (n *node) find(ctx context.Context, tx *bolt.Tx, bucketName, fieldName stri
 
 	list, err := idx.All(ctx, val, opts)
 	if err != nil {
-		if err == index.ErrNotFound {
+		if errors.Is(err, index.ErrNotFound) {
 			return ErrNotFound
 		}
 		return err
@@ -402,7 +403,7 @@ func (n *node) allByIndex(ctx context.Context, tx *bolt.Tx, fieldName string, cf
 
 	list, err := idx.AllRecords(ctx, opts)
 	if err != nil {
-		if err == index.ErrNotFound {
+		if errors.Is(err, index.ErrNotFound) {
 			return ErrNotFound
 		}
 		return err
@@ -468,11 +469,11 @@ func (n *node) All(ctx context.Context, to any, options ...FindOption) error {
 	}
 
 	err := query.Find(ctx, to)
-	if err != nil && err != ErrNotFound {
+	if err != nil && !errors.Is(err, ErrNotFound) {
 		return err
 	}
 
-	if err == ErrNotFound {
+	if errors.Is(err, ErrNotFound) {
 		ref := reflect.ValueOf(to)
 		results := reflect.MakeSlice(reflect.Indirect(ref).Type(), 0, 0)
 		reflect.Indirect(ref).Set(results)

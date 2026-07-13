@@ -104,7 +104,7 @@ func TestIDIndexPrefix(t *testing.T) {
 	}
 	err = db.Prefix(ctx, "Email", "uni", &simpleLogins, setZeroedLimit)
 	require.Error(t, err)
-	require.True(t, rainstorm.ErrNotFound == err)
+	require.ErrorIs(t, err, rainstorm.ErrNotFound)
 
 	setLimit := func(opt *index.Options) {
 		opt.Limit = 1
@@ -150,7 +150,7 @@ func TestIDIndexRange(t *testing.T) {
 
 	err = db.Range(ctx, "Barcode", 5, 8, &simpleProducts, setZeroedLimit)
 	require.Error(t, err)
-	require.True(t, rainstorm.ErrNotFound == err)
+	require.ErrorIs(t, err, rainstorm.ErrNotFound)
 
 	setLimit := func(opt *index.Options) {
 		opt.Limit = 1

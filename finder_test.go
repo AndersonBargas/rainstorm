@@ -33,14 +33,14 @@ func TestFind(t *testing.T) {
 
 	err := db.Find(ctx, "Name", "John", &User{})
 	require.Error(t, err)
-	require.Equal(t, ErrSlicePtrNeeded, err)
+	require.ErrorIs(t, err, ErrSlicePtrNeeded)
 
 	err = db.Find(ctx, "Name", "John", &[]struct {
 		Name string
 		ID   int
 	}{})
 	require.Error(t, err)
-	require.Equal(t, ErrNoName, err)
+	require.ErrorIs(t, err, ErrNoName)
 
 	notTheRightUsers := []UniqueNameUser{}
 
@@ -56,7 +56,7 @@ func TestFind(t *testing.T) {
 
 	err = db.Find(ctx, "DateOfBirth", "John", &users)
 	require.Error(t, err)
-	require.True(t, ErrNotFound == err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.Find(ctx, "Group", "staff", &users)
 	require.NoError(t, err)
@@ -72,11 +72,11 @@ func TestFind(t *testing.T) {
 
 	err = db.Find(ctx, "Group", "admin", &users)
 	require.Error(t, err)
-	require.True(t, ErrNotFound == err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.Find(ctx, "Name", "John", users)
 	require.Error(t, err)
-	require.Equal(t, ErrSlicePtrNeeded, err)
+	require.ErrorIs(t, err, ErrSlicePtrNeeded)
 
 	err = db.Find(ctx, "Name", "John", &users)
 	require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestFind(t *testing.T) {
 	users = []User{}
 	err = db.Find(ctx, "Name", nil, &users)
 	require.Error(t, err)
-	require.True(t, ErrNotFound == err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.Find(ctx, "Name", "John", &users, Limit(10), Skip(20))
 	require.NoError(t, err)
@@ -195,13 +195,13 @@ func TestAllByIndex(t *testing.T) {
 
 	err := db.AllByIndex(ctx, "", nil)
 	require.Error(t, err)
-	require.Equal(t, ErrSlicePtrNeeded, err)
+	require.ErrorIs(t, err, ErrSlicePtrNeeded)
 
 	var users []User
 
 	err = db.AllByIndex(ctx, "Unknown field", &users)
 	require.Error(t, err)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.AllByIndex(ctx, "DateOfBirth", &users)
 	require.NoError(t, err)
@@ -393,7 +393,7 @@ func TestCount(t *testing.T) {
 
 	err = db.WriteTransaction(ctx, func(txn Node) error {
 		_, cerr := txn.Count(ctx, User{})
-		require.Equal(t, ErrStructPtrNeeded, cerr)
+		require.ErrorIs(t, cerr, ErrStructPtrNeeded)
 
 		c, cerr := txn.Count(ctx, &User{})
 		require.NoError(t, cerr)
@@ -458,19 +458,19 @@ func TestOne(t *testing.T) {
 
 	err = db.One(ctx, "Name", "Mike", &x)
 	require.Error(t, err)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.One(ctx, "", nil, &x)
 	require.Error(t, err)
-	require.True(t, ErrNotFound == err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.One(ctx, "", "Mike", nil)
 	require.Error(t, err)
-	require.Equal(t, ErrStructPtrNeeded, err)
+	require.ErrorIs(t, err, ErrStructPtrNeeded)
 
 	err = db.One(ctx, "", nil, nil)
 	require.Error(t, err)
-	require.Equal(t, ErrStructPtrNeeded, err)
+	require.ErrorIs(t, err, ErrStructPtrNeeded)
 
 	err = db.One(ctx, "Group", "staff", &x)
 	require.NoError(t, err)
@@ -482,7 +482,7 @@ func TestOne(t *testing.T) {
 
 	err = db.One(ctx, "Group", "admin", &x)
 	require.Error(t, err)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	y := UniqueNameUser{Name: "Jake", ID: 200}
 	err = db.Save(ctx, &y)
@@ -563,7 +563,7 @@ func TestRange(t *testing.T) {
 	var users []User
 
 	err := db.Range(ctx, "Slug", min, max, users)
-	require.Equal(t, ErrSlicePtrNeeded, err)
+	require.ErrorIs(t, err, ErrSlicePtrNeeded)
 
 	err = db.Range(ctx, "Slug", min, max, &users)
 	require.NoError(t, err)
@@ -594,7 +594,7 @@ func TestRange(t *testing.T) {
 
 	err = db.Range(ctx, "Name", min, max, &User{})
 	require.Error(t, err)
-	require.Equal(t, ErrSlicePtrNeeded, err)
+	require.ErrorIs(t, err, ErrSlicePtrNeeded)
 
 	notTheRightUsers := []UniqueNameUser{}
 
@@ -662,7 +662,7 @@ func TestPrefix(t *testing.T) {
 
 	var users []User
 	err := db.Prefix(ctx, "Name", "Jo", users)
-	require.Equal(t, ErrSlicePtrNeeded, err)
+	require.ErrorIs(t, err, ErrSlicePtrNeeded)
 
 	// Using indexes
 	err = db.Prefix(ctx, "Name", "Jo", &users)
@@ -704,7 +704,7 @@ func TestPrefix(t *testing.T) {
 
 	// Bad value
 	err = db.Prefix(ctx, "Group", "group3", &users)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 }
 
 func TestPrefixWithID(t *testing.T) {

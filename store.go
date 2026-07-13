@@ -3,6 +3,7 @@ package rainstorm
 import (
 	"bytes"
 	"context"
+	"errors"
 	"reflect"
 
 	"github.com/AndersonBargas/rainstorm/v6/index"
@@ -359,7 +360,7 @@ func (n *node) save(ctx context.Context, tx *bolt.Tx, cfg *structConfig, data in
 
 		err = idx.Add(ctx, value, id)
 		if err != nil {
-			if err == index.ErrAlreadyExists {
+			if errors.Is(err, index.ErrAlreadyExists) {
 				return ErrAlreadyExists
 			}
 			return err
@@ -612,7 +613,7 @@ func (n *node) deleteStruct(ctx context.Context, tx *bolt.Tx, cfg *structConfig,
 
 		err = idx.RemoveID(ctx, id)
 		if err != nil {
-			if err == index.ErrNotFound {
+			if errors.Is(err, index.ErrNotFound) {
 				return ErrNotFound
 			}
 			return err

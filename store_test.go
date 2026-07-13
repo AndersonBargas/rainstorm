@@ -22,30 +22,30 @@ func TestInit(t *testing.T) {
 
 	var u IndexedNameUser
 	err := db.One(ctx, "Name", "John", &u)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.Init(ctx, &u)
 	require.NoError(t, err)
 
 	err = db.One(ctx, "Name", "John", &u)
 	require.Error(t, err)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.Init(ctx, &ClassicBadTags{})
 	require.Error(t, err)
-	require.Equal(t, ErrUnknownTag, err)
+	require.ErrorIs(t, err, ErrUnknownTag)
 
 	err = db.Init(ctx, 10)
 	require.Error(t, err)
-	require.Equal(t, ErrBadType, err)
+	require.ErrorIs(t, err, ErrBadType)
 
 	err = db.Init(ctx, &ClassicNoTags{})
 	require.Error(t, err)
-	require.Equal(t, ErrNoID, err)
+	require.ErrorIs(t, err, ErrNoID)
 
 	err = db.Init(ctx, &struct{ ID string }{})
 	require.Error(t, err)
-	require.Equal(t, ErrNoName, err)
+	require.ErrorIs(t, err, ErrNoName)
 }
 
 func TestInitMetadata(t *testing.T) {
@@ -58,7 +58,7 @@ func TestInitMetadata(t *testing.T) {
 	require.NoError(t, err)
 	n := db.WithCodec(gob.Codec)
 	err = n.Init(ctx, new(User))
-	require.Equal(t, ErrDifferentCodec, err)
+	require.ErrorIs(t, err, ErrDifferentCodec)
 }
 
 func TestReIndex(t *testing.T) {
@@ -123,15 +123,15 @@ func TestSave(t *testing.T) {
 
 	err = db.Save(ctx, &SimpleUser{Name: "John"})
 	require.Error(t, err)
-	require.Equal(t, ErrZeroID, err)
+	require.ErrorIs(t, err, ErrZeroID)
 
 	err = db.Save(ctx, &ClassicBadTags{ID: "id", PublicField: 100})
 	require.Error(t, err)
-	require.Equal(t, ErrUnknownTag, err)
+	require.ErrorIs(t, err, ErrUnknownTag)
 
 	err = db.Save(ctx, &UserWithNoID{Name: "John"})
 	require.Error(t, err)
-	require.Equal(t, ErrNoID, err)
+	require.ErrorIs(t, err, ErrNoID)
 
 	err = db.Save(ctx, &UserWithIDField{ID: 10, Name: "John"})
 	require.NoError(t, err)
@@ -183,7 +183,7 @@ func TestSaveUnique(t *testing.T) {
 	u2 := UniqueNameUser{ID: 11, Name: "John", Age: 100}
 	err = db.Save(ctx, &u2)
 	require.Error(t, err)
-	require.True(t, ErrAlreadyExists == err)
+	require.ErrorIs(t, err, ErrAlreadyExists)
 
 	// same id
 	u3 := UniqueNameUser{ID: 10, Name: "Jake", Age: 100}
@@ -225,7 +225,7 @@ func TestSaveUniqueStruct(t *testing.T) {
 	b.InlineStruct.B = 12.0
 
 	err = db.Save(ctx, &b)
-	require.Equal(t, ErrAlreadyExists, err)
+	require.ErrorIs(t, err, ErrAlreadyExists)
 
 	err = db.One(ctx, "InlineStruct", struct {
 		A float32
@@ -280,11 +280,11 @@ func TestSaveIndex(t *testing.T) {
 
 	err = db.Find(ctx, "Name", name3, &users)
 	require.Error(t, err)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.Save(ctx, nil)
 	require.Error(t, err)
-	require.Equal(t, ErrStructPtrNeeded, err)
+	require.ErrorIs(t, err, ErrStructPtrNeeded)
 }
 
 func TestSaveEmptyValues(t *testing.T) {
@@ -437,7 +437,7 @@ func TestSaveByValue(t *testing.T) {
 	w := User{Name: "John"}
 	err := db.Save(ctx, w)
 	require.Error(t, err)
-	require.Equal(t, ErrStructPtrNeeded, err)
+	require.ErrorIs(t, err, ErrStructPtrNeeded)
 }
 
 func TestConcurrentSave(t *testing.T) {
@@ -484,7 +484,7 @@ func TestSaveMetadata(t *testing.T) {
 	require.NoError(t, err)
 	n := db.WithCodec(gob.Codec)
 	err = n.Save(ctx, &w)
-	require.Equal(t, ErrDifferentCodec, err)
+	require.ErrorIs(t, err, ErrDifferentCodec)
 }
 
 func TestUpdate(t *testing.T) {
@@ -509,22 +509,22 @@ func TestUpdate(t *testing.T) {
 
 	// nil
 	err = db.Update(ctx, nil)
-	require.Equal(t, ErrStructPtrNeeded, err)
+	require.ErrorIs(t, err, ErrStructPtrNeeded)
 
 	// no id
 	err = db.Update(ctx, &User{Name: "Jack"})
-	require.Equal(t, ErrNoID, err)
+	require.ErrorIs(t, err, ErrNoID)
 
 	// Unknown user
 	err = db.Update(ctx, &User{ID: 11, Name: "Jack"})
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	// actual user
 	err = db.Update(ctx, &User{ID: 10, Name: "Jack"})
 	require.NoError(t, err)
 
 	err = db.One(ctx, "Name", "John", &u)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.One(ctx, "Name", "Jack", &u)
 	require.NoError(t, err)
@@ -564,30 +564,30 @@ func TestUpdateField(t *testing.T) {
 
 	// nil
 	err = db.UpdateField(ctx, nil, "", nil)
-	require.Equal(t, ErrStructPtrNeeded, err)
+	require.ErrorIs(t, err, ErrStructPtrNeeded)
 
 	// no id
 	err = db.UpdateField(ctx, &User{}, "Name", "Jack")
-	require.Equal(t, ErrNoID, err)
+	require.ErrorIs(t, err, ErrNoID)
 
 	// Unknown user
 	err = db.UpdateField(ctx, &User{ID: 11}, "Name", "Jack")
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	// Unknown field
 	err = db.UpdateField(ctx, &User{ID: 11}, "Address", "Jack")
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	// Incompatible value
 	err = db.UpdateField(ctx, &User{ID: 10}, "Name", 50)
-	require.Equal(t, ErrIncompatibleValue, err)
+	require.ErrorIs(t, err, ErrIncompatibleValue)
 
 	// actual user
 	err = db.UpdateField(ctx, &User{ID: 10}, "Name", "Jack")
 	require.NoError(t, err)
 
 	err = db.One(ctx, "Name", "John", &u)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.One(ctx, "Name", "Jack", &u)
 	require.NoError(t, err)
@@ -598,7 +598,7 @@ func TestUpdateField(t *testing.T) {
 	require.NoError(t, err)
 
 	err = db.One(ctx, "Name", "Jack", &u)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.One(ctx, "ID", 10, &u)
 	require.NoError(t, err)
@@ -609,7 +609,7 @@ func TestUpdateField(t *testing.T) {
 	require.NoError(t, err)
 
 	err = db.Select(q.Eq("Age", uint64(5))).First(ctx, &u)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.Select(q.Eq("Age", uint64(0))).First(ctx, &u)
 	require.NoError(t, err)
@@ -690,20 +690,20 @@ func TestDeleteStruct(t *testing.T) {
 	require.NoError(t, err)
 
 	err = db.DeleteStruct(ctx, u1)
-	require.Equal(t, ErrStructPtrNeeded, err)
+	require.ErrorIs(t, err, ErrStructPtrNeeded)
 
 	err = db.DeleteStruct(ctx, &u1)
 	require.NoError(t, err)
 
 	err = db.DeleteStruct(ctx, &u1)
-	require.Equal(t, ErrNotFound, err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	u2 := IndexedNameUser{}
 	err = db.Get(ctx, "IndexedNameUser", 10, &u2)
-	require.True(t, ErrNotFound == err)
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.DeleteStruct(ctx, nil)
-	require.Equal(t, ErrStructPtrNeeded, err)
+	require.ErrorIs(t, err, ErrStructPtrNeeded)
 
 	var users []User
 	for i := 0; i < 10; i++ {

@@ -174,7 +174,7 @@ func TestStructOps_CancelledContextPreventsWork(t *testing.T) {
 			verifyNoPersist: func(t *testing.T) {
 				var u User
 				err := db.One(context.Background(), "ID", 42, &u)
-				require.Equal(t, ErrNotFound, err)
+				require.ErrorIs(t, err, ErrNotFound)
 			},
 		},
 		{
@@ -367,7 +367,7 @@ func TestKV_CancelledContextPreventsWork(t *testing.T) {
 		var s string
 		gErr := db.Get(ctx, "trash", "newkey", &s)
 		require.Error(t, gErr)
-		require.Equal(t, ErrNotFound, gErr, "canceled Set must not persist")
+		require.ErrorIs(t, gErr, ErrNotFound, "canceled Set must not persist")
 	})
 
 	t.Run("Delete", func(t *testing.T) {
@@ -388,7 +388,7 @@ func TestKV_CancelledContextPreventsWork(t *testing.T) {
 		require.True(t, errors.Is(err, context.Canceled))
 
 		_, gErr := db.GetBytes(ctx, "trash", "newk")
-		require.Equal(t, ErrNotFound, gErr, "canceled SetBytes must not persist")
+		require.ErrorIs(t, gErr, ErrNotFound, "canceled SetBytes must not persist")
 	})
 
 	t.Run("KeyExists", func(t *testing.T) {
