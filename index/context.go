@@ -1,6 +1,9 @@
 package index
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // checkContext validates a context before an index operation.
 // A nil context returns ErrNilContext. An already canceled or expired
@@ -10,4 +13,13 @@ func checkContext(ctx context.Context) error {
 		return ErrNilContext
 	}
 	return ctx.Err()
+}
+
+// wrapError adds operation context to an error while preserving classification.
+// It returns nil when err is nil.
+func wrapError(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("rainstorm %s: %w", operation, err)
 }

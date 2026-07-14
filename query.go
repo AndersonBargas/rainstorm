@@ -103,57 +103,57 @@ func (q *query) Bucket(bucketName string) Query {
 
 func (q *query) Find(ctx context.Context, to any) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("query find", err)
 	}
 
 	sink, err := newListSink(q.node, to)
 	if err != nil {
-		return err
+		return wrapError("query find", err)
 	}
 
-	return q.runQuery(ctx, sink)
+	return wrapError("query find", q.runQuery(ctx, sink))
 }
 
 func (q *query) First(ctx context.Context, to any) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("query first", err)
 	}
 
 	sink, err := newFirstSink(q.node, to)
 	if err != nil {
-		return err
+		return wrapError("query first", err)
 	}
 
 	q.limit = 1
-	return q.runQuery(ctx, sink)
+	return wrapError("query first", q.runQuery(ctx, sink))
 }
 
 func (q *query) Delete(ctx context.Context, kind any) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("query delete", err)
 	}
 
 	sink, err := newDeleteSink(q.node, kind)
 	if err != nil {
-		return err
+		return wrapError("query delete", err)
 	}
 
-	return q.runQuery(ctx, sink)
+	return wrapError("query delete", q.runQuery(ctx, sink))
 }
 
 func (q *query) Count(ctx context.Context, kind any) (int, error) {
 	if err := checkContext(ctx); err != nil {
-		return 0, err
+		return 0, wrapError("query count", err)
 	}
 
 	sink, err := newCountSink(q.node, kind)
 	if err != nil {
-		return 0, err
+		return 0, wrapError("query count", err)
 	}
 
 	err = q.runQuery(ctx, sink)
 	if err != nil {
-		return 0, err
+		return 0, wrapError("query count", err)
 	}
 
 	return sink.counter, nil
@@ -161,14 +161,14 @@ func (q *query) Count(ctx context.Context, kind any) (int, error) {
 
 func (q *query) Raw(ctx context.Context) ([][]byte, error) {
 	if err := checkContext(ctx); err != nil {
-		return nil, err
+		return nil, wrapError("query raw", err)
 	}
 
 	sink := newRawSink()
 
 	err := q.runQuery(ctx, sink)
 	if err != nil {
-		return nil, err
+		return nil, wrapError("query raw", err)
 	}
 
 	return sink.results, nil
@@ -176,37 +176,37 @@ func (q *query) Raw(ctx context.Context) ([][]byte, error) {
 
 func (q *query) RawEach(ctx context.Context, fn func(key, value []byte) error) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("query raw each", err)
 	}
 
 	if fn == nil {
-		return ErrNilParam
+		return wrapError("query raw each", ErrNilParam)
 	}
 
 	sink := newRawSink()
 
 	sink.execFn = fn
 
-	return q.runQuery(ctx, sink)
+	return wrapError("query raw each", q.runQuery(ctx, sink))
 }
 
 func (q *query) Each(ctx context.Context, kind any, fn func(any) error) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("query each", err)
 	}
 
 	if fn == nil {
-		return ErrNilParam
+		return wrapError("query each", ErrNilParam)
 	}
 
 	sink, err := newEachSink(kind)
 	if err != nil {
-		return err
+		return wrapError("query each", err)
 	}
 
 	sink.execFn = fn
 
-	return q.runQuery(ctx, sink)
+	return wrapError("query each", q.runQuery(ctx, sink))
 }
 
 func (q *query) runQuery(ctx context.Context, sink sink) error {

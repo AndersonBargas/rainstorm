@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,13 +47,15 @@ func TestFind(t *testing.T) {
 
 	err = db.Find(ctx, "Name", "John", &notTheRightUsers)
 	require.Error(t, err)
-	require.EqualError(t, err, "not found")
+	require.ErrorIs(t, err, ErrNotFound)
 
 	users := []User{}
 
 	err = db.Find(ctx, "unexportedField", "John", &users)
 	require.Error(t, err)
-	require.EqualError(t, err, "field unexportedField not found")
+	require.True(t, strings.HasPrefix(err.Error(), "rainstorm find:"),
+		"expected prefix 'rainstorm find:', got %q", err.Error())
+	require.True(t, strings.HasSuffix(err.Error(), "field unexportedField not found"))
 
 	err = db.Find(ctx, "DateOfBirth", "John", &users)
 	require.Error(t, err)
@@ -606,7 +609,7 @@ func TestRange(t *testing.T) {
 
 	err = db.Range(ctx, "Age", min, max, &users)
 	require.Error(t, err)
-	require.EqualError(t, err, "not found")
+	require.ErrorIs(t, err, ErrNotFound)
 
 	err = db.Range(ctx, "Age", 2, 5, &users)
 	require.NoError(t, err)

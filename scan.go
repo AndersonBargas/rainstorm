@@ -18,11 +18,15 @@ type BucketScanner interface {
 // PrefixScan scans the buckets in this node for keys matching the given prefix.
 func (n *node) PrefixScan(ctx context.Context, prefix string) ([]Node, error) {
 	if err := checkContext(ctx); err != nil {
-		return nil, err
+		return nil, wrapError("prefix scan", err)
 	}
 
 	if n.tx != nil {
-		return n.prefixScan(ctx, n.tx, prefix)
+		nodes, err := n.prefixScan(ctx, n.tx, prefix)
+		if err != nil {
+			return nil, wrapError("prefix scan", err)
+		}
+		return nodes, nil
 	}
 
 	var nodes []Node
@@ -35,7 +39,7 @@ func (n *node) PrefixScan(ctx context.Context, prefix string) ([]Node, error) {
 		return scanErr
 	})
 	if err != nil {
-		return nil, err
+		return nil, wrapError("prefix scan", err)
 	}
 	return nodes, nil
 }
@@ -88,11 +92,15 @@ func (n *node) prefixScan(ctx context.Context, tx *bolt.Tx, prefix string) ([]No
 // RangeScan scans the buckets in this node  over a range such as a sortable time range.
 func (n *node) RangeScan(ctx context.Context, min, max string) ([]Node, error) {
 	if err := checkContext(ctx); err != nil {
-		return nil, err
+		return nil, wrapError("range scan", err)
 	}
 
 	if n.tx != nil {
-		return n.rangeScan(ctx, n.tx, min, max)
+		nodes, err := n.rangeScan(ctx, n.tx, min, max)
+		if err != nil {
+			return nil, wrapError("range scan", err)
+		}
+		return nodes, nil
 	}
 
 	var nodes []Node
@@ -105,7 +113,7 @@ func (n *node) RangeScan(ctx context.Context, min, max string) ([]Node, error) {
 		return scanErr
 	})
 	if err != nil {
-		return nil, err
+		return nil, wrapError("range scan", err)
 	}
 	return nodes, nil
 }

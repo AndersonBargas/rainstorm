@@ -87,7 +87,7 @@ func ExampleDB_One() {
 	fmt.Println(err)
 
 	// Output:
-	// not found
+	// rainstorm one: not found
 }
 
 func ExampleDB_Find() {
@@ -384,7 +384,7 @@ func ExampleDB_From() {
 	fmt.Println(personalNote.Text)
 
 	// Output:
-	// not found
+	// rainstorm one: not found
 	// Work related.
 	// This is some private text.
 	// This is some very personal text.
@@ -415,7 +415,7 @@ func ExampleDB_Drop() {
 	fmt.Println(err)
 
 	// Output:
-	// not found
+	// rainstorm one: not found
 }
 
 func ExampleNode_PrefixScan() {

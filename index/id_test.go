@@ -177,19 +177,19 @@ func TestIDIndexParams(t *testing.T) {
 
 		// empty value param
 		err = idx.Add(ctx, []byte(""), []byte("id"))
-		require.Equal(t, index.ErrNilParam, err)
+		require.ErrorIs(t, err, index.ErrNilParam)
 
 		// nil value param
 		err = idx.Add(ctx, nil, []byte("id"))
-		require.Equal(t, index.ErrNilParam, err)
+		require.ErrorIs(t, err, index.ErrNilParam)
 
 		// empty id param
 		err = idx.Add(ctx, []byte("value"), []byte(""))
-		require.Equal(t, index.ErrNilParam, err)
+		require.ErrorIs(t, err, index.ErrNilParam)
 
 		// nil id param
 		err = idx.Add(ctx, []byte("value"), nil)
-		require.Equal(t, index.ErrNilParam, err)
+		require.ErrorIs(t, err, index.ErrNilParam)
 
 		// passing value and id params
 		err = idx.Add(ctx, []byte("value"), []byte("id"))

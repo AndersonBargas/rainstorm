@@ -42,11 +42,11 @@ func TestListIndex(t *testing.T) {
 
 		err = idx.Add(context.Background(), nil, []byte("id2"))
 		require.Error(t, err)
-		require.Equal(t, index.ErrNilParam, err)
+		require.ErrorIs(t, err, index.ErrNilParam)
 
 		err = idx.Add(context.Background(), []byte("hi"), nil)
 		require.Error(t, err)
-		require.Equal(t, index.ErrNilParam, err)
+		require.ErrorIs(t, err, index.ErrNilParam)
 
 		ids, err := idx.All(context.Background(), []byte("hello"), nil)
 		require.NoError(t, err)

@@ -35,15 +35,15 @@ func TestUniqueIndex(t *testing.T) {
 
 		err = idx.Add(context.Background(), []byte("hello"), []byte("id2"))
 		require.Error(t, err)
-		require.Equal(t, index.ErrAlreadyExists, err)
+		require.ErrorIs(t, err, index.ErrAlreadyExists)
 
 		err = idx.Add(context.Background(), nil, []byte("id2"))
 		require.Error(t, err)
-		require.Equal(t, index.ErrNilParam, err)
+		require.ErrorIs(t, err, index.ErrNilParam)
 
 		err = idx.Add(context.Background(), []byte("hi"), nil)
 		require.Error(t, err)
-		require.Equal(t, index.ErrNilParam, err)
+		require.ErrorIs(t, err, index.ErrNilParam)
 
 		id, _ := idx.Get(context.Background(), []byte("hello"))
 		require.Equal(t, []byte("id1"), id)

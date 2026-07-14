@@ -10,6 +10,9 @@ import (
 
 // NewIDIndex loads a IDIndex
 func NewIDIndex(parent *bolt.Bucket, indexName []byte) (*IDIndex, error) {
+	if parent == nil {
+		return nil, wrapError("index new id", ErrNilParam)
+	}
 	return &IDIndex{
 		IndexBucket: parent,
 	}, nil
@@ -23,13 +26,13 @@ type IDIndex struct {
 // Add a value to the unique index
 func (idx *IDIndex) Add(ctx context.Context, value []byte, targetID []byte) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("index add", err)
 	}
 	if value == nil || len(value) == 0 {
-		return ErrNilParam
+		return wrapError("index add", ErrNilParam)
 	}
 	if targetID == nil || len(targetID) == 0 {
-		return ErrNilParam
+		return wrapError("index add", ErrNilParam)
 	}
 
 	return nil
@@ -38,7 +41,7 @@ func (idx *IDIndex) Add(ctx context.Context, value []byte, targetID []byte) erro
 // Remove a value from the unique index
 func (idx *IDIndex) Remove(ctx context.Context, value []byte) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("index remove", err)
 	}
 	return nil
 }
@@ -46,7 +49,7 @@ func (idx *IDIndex) Remove(ctx context.Context, value []byte) error {
 // RemoveID removes an ID from the unique index
 func (idx *IDIndex) RemoveID(ctx context.Context, id []byte) error {
 	if err := checkContext(ctx); err != nil {
-		return err
+		return wrapError("index remove id", err)
 	}
 	return nil
 }
@@ -54,13 +57,13 @@ func (idx *IDIndex) RemoveID(ctx context.Context, id []byte) error {
 // Get the id corresponding to the given value
 func (idx *IDIndex) Get(ctx context.Context, value []byte) ([]byte, error) {
 	if err := checkContext(ctx); err != nil {
-		return nil, err
+		return nil, wrapError("index get", err)
 	}
 
 	raw := idx.IndexBucket.Get(value)
 
 	if err := checkContext(ctx); err != nil {
-		return nil, err
+		return nil, wrapError("index get", err)
 	}
 
 	return raw, nil
@@ -69,12 +72,12 @@ func (idx *IDIndex) Get(ctx context.Context, value []byte) ([]byte, error) {
 // All returns all the ids corresponding to the given value
 func (idx *IDIndex) All(ctx context.Context, value []byte, opts *Options) ([][]byte, error) {
 	if err := checkContext(ctx); err != nil {
-		return nil, err
+		return nil, wrapError("index all", err)
 	}
 
 	id := idx.IndexBucket.Get(value)
 	if err := checkContext(ctx); err != nil {
-		return nil, err
+		return nil, wrapError("index all", err)
 	}
 	if id != nil {
 		return [][]byte{id}, nil
@@ -86,7 +89,7 @@ func (idx *IDIndex) All(ctx context.Context, value []byte, opts *Options) ([][]b
 // AllRecords returns all the IDs of this index
 func (idx *IDIndex) AllRecords(ctx context.Context, opts *Options) ([][]byte, error) {
 	if err := checkContext(ctx); err != nil {
-		return nil, err
+		return nil, wrapError("index all records", err)
 	}
 	var list [][]byte
 	return list, nil
@@ -95,7 +98,7 @@ func (idx *IDIndex) AllRecords(ctx context.Context, opts *Options) ([][]byte, er
 // Range returns the ids corresponding to the given range of values
 func (idx *IDIndex) Range(ctx context.Context, min []byte, max []byte, opts *Options) ([][]byte, error) {
 	if err := checkContext(ctx); err != nil {
-		return nil, err
+		return nil, wrapError("index range", err)
 	}
 
 	var list [][]byte
@@ -112,7 +115,7 @@ func (idx *IDIndex) Range(ctx context.Context, min []byte, max []byte, opts *Opt
 
 	for ident, _ := c.First(); ident != nil && c.Continue(ident); ident, _ = c.Next() {
 		if err := checkContext(ctx); err != nil {
-			return nil, err
+			return nil, wrapError("index range", err)
 		}
 
 		if opts != nil && opts.Skip > 0 {
@@ -132,7 +135,7 @@ func (idx *IDIndex) Range(ctx context.Context, min []byte, max []byte, opts *Opt
 	}
 
 	if err := checkContext(ctx); err != nil {
-		return nil, err
+		return nil, wrapError("index range", err)
 	}
 
 	return list, nil
@@ -141,7 +144,7 @@ func (idx *IDIndex) Range(ctx context.Context, min []byte, max []byte, opts *Opt
 // Prefix returns the ids whose values have the given prefix.
 func (idx *IDIndex) Prefix(ctx context.Context, prefix []byte, opts *Options) ([][]byte, error) {
 	if err := checkContext(ctx); err != nil {
-		return nil, err
+		return nil, wrapError("index prefix", err)
 	}
 
 	var list [][]byte
@@ -154,7 +157,7 @@ func (idx *IDIndex) Prefix(ctx context.Context, prefix []byte, opts *Options) ([
 
 	for ident, _ := c.First(); ident != nil && c.Continue(ident); ident, _ = c.Next() {
 		if err := checkContext(ctx); err != nil {
-			return nil, err
+			return nil, wrapError("index prefix", err)
 		}
 
 		if opts != nil && opts.Skip > 0 {
@@ -174,7 +177,7 @@ func (idx *IDIndex) Prefix(ctx context.Context, prefix []byte, opts *Options) ([
 	}
 
 	if err := checkContext(ctx); err != nil {
-		return nil, err
+		return nil, wrapError("index prefix", err)
 	}
 
 	return list, nil
