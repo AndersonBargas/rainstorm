@@ -86,7 +86,7 @@ Every exported operation that may access the database receives `context.Context`
 
 Configuration-only methods such as `From`, `WithCodec`, option constructors, and query builders do not receive a context. `Close` remains context-free because it is a resource lifecycle operation rather than a request operation.
 
-A nil context is invalid. Implementations must not replace it silently with `context.Background()`. The exact nil-context error will be defined during the error phase.
+A nil context is invalid and returns an error matching `ErrNilContext`. A nil required non-context argument (such as a nil callback or a nil `*bolt.DB` passed to `UseDB`) returns an error matching `ErrNilParam`. Callers must classify these with `errors.Is`. Rainstorm must never silently replace a nil context with `context.Background()`.
 
 ### 4.2 Required checks
 
@@ -105,31 +105,36 @@ If cancellation is observed before a read result is returned, the operation retu
 
 Streaming callbacks stop at the first observed cancellation.
 
+For Rainstorm read operations that publish a destination, decoding and collection assembly occur in temporary state, followed by a final context check and then destination publication. After publication, the operation returns success without a retroactive context check. This guarantee does not extend to arbitrary external side effects performed by user callbacks.
+
 ### 4.4 Write semantics
 
 For an automatically managed write transaction:
 
-- cancellation before commit causes rollback;
-- callback or validation failure causes rollback;
+- cancellation before commit causes rollback and returns the context error;
+- callback error causes rollback and the callback error remains the primary cause;
+- if the callback cancels the context and returns another error, the callback error remains the primary returned cause;
 - commit occurs only after the callback succeeds and the context remains valid;
-- once `Commit` succeeds, the write is successful and must not subsequently be reported as rolled back because the context was canceled afterward.
+- once commit succeeds, the write is durable and Rainstorm does not perform a retroactive context check that can report cancellation.
 
-Rainstorm must not return `context.Canceled` after a confirmed successful commit merely because cancellation raced with the return path.
+Panic values are not converted into errors and propagate unchanged after bbolt unwinds the transaction.
 
 ### 4.5 Limits inherited from bbolt
 
-Cancellation is cooperative, not preemptive.
+Cancellation is cooperative, not preemptive. Rainstorm checks at explicit boundaries and loop checkpoints.
 
-Rainstorm cannot honestly guarantee immediate interruption of:
+Rainstorm cannot interrupt:
 
 - an operating-system syscall;
 - a bbolt-internal mutex or lock wait;
 - codec code that does not observe a context;
-- user callback code that ignores its context.
+- a user callback that does not return control.
 
-Rainstorm must not start an uninterruptible bbolt operation in a goroutine and abandon that goroutine when the context is canceled. Such an operation could later acquire a transaction and leak resources or perform unexpected work.
+Cancellation may therefore not return instantaneously.
 
-When a context is canceled while Rainstorm is waiting inside bbolt, Rainstorm checks cancellation immediately after control returns or the transaction is acquired, rolls back if needed, and returns the context error. Documentation must describe that return may not be instantaneous.
+Rainstorm must not spawn and abandon goroutines around uninterruptible bbolt operations.
+
+No successful commit or already-published read destination is converted into a later cancellation error. Once commit succeeds or a destination is published, the operation returns success — Rainstorm does not perform a retroactive context check.
 
 ## 5. Public API direction
 
@@ -143,6 +148,18 @@ func (db *DB) Close() error
 ```
 
 Opening a database performs I/O and therefore receives a context. Rainstorm checks it before opening and after initialization. Because bbolt does not provide a context-aware `Open`, cancellation remains cooperative. `Close` remains context-free so cleanup is always possible even after cancellation.
+
+**Owned lifecycle.** `Open` without `UseDB` opens and owns the bbolt database. `DB.Close()` on an owned database closes the underlying bbolt database. Failed initialization or post-open cancellation closes only databases owned by Rainstorm.
+
+**Borrowed lifecycle.** `UseDB` supplies an already-open borrowed `*bbolt.DB`:
+
+```go
+func UseDB(b *bolt.DB) OpenOption
+```
+
+Rainstorm does not close a borrowed database. `DB.Close()` on a borrowed database returns nil and is a no-op for the underlying database. The caller must keep a borrowed database open while Rainstorm is using it and remains responsible for closing it. Failed initialization or cancellation must not close a borrowed database. `UseDB(nil)` is rejected with an error matching `ErrNilParam`. `NativeDB` returns the same underlying pointer, not a wrapper or copy.
+
+`BoltOptions` remains supported as the mechanism to configure bbolt file mode and options.
 
 Options become named types rather than raw function signatures:
 
@@ -236,7 +253,7 @@ The v5 signatures that return only `[]Node` cannot report cancellation and will 
 
 ### 5.7 Nodes
 
-The primary `Node` interface will contain Rainstorm abstractions, not raw bbolt transaction or bucket operations:
+The primary `Node` interface contains Rainstorm abstractions, not raw bbolt transaction or bucket operations:
 
 ```go
 type Node interface {
@@ -251,12 +268,15 @@ type Node interface {
 }
 ```
 
-The following v5 members must not remain in the primary `Node` contract:
+`Node` does not expose bbolt transaction or bucket types. It has no manual `Begin`, `Commit`, `Rollback`, `WithTransaction`, `GetBucket`, or `CreateBucketIfNotExists` methods. These v5 members are removed from the v6 primary API.
 
-- `GetBucket`;
-- `CreateBucketIfNotExists`;
-- `WithTransaction(*bolt.Tx)`;
-- manual `Begin` inherited as the primary transaction API.
+`DB` has no exported `Bolt` field. `NativeDB()` is the explicit advanced interoperability escape hatch:
+
+```go
+func (db *DB) NativeDB() *bolt.DB
+```
+
+`NativeDB` returns the underlying `*bbolt.DB`. Native operations bypass Rainstorm context checkpoints. Native writes can bypass codecs, indexes, metadata, and invariants. Callers must coordinate native and Rainstorm transactions internally. Callers must not close the native database while Rainstorm is active. Ordinary application code should prefer Rainstorm APIs and managed transactions.
 
 This prevents application code from depending on bbolt merely to use Rainstorm.
 
@@ -264,7 +284,7 @@ This prevents application code from depending on bbolt merely to use Rainstorm.
 
 ### 6.1 Canonical API
 
-Callback-managed transactions are the canonical transaction boundary:
+`ReadTransaction` and `WriteTransaction` are the canonical transaction API. `DB` implements `TransactionManager`:
 
 ```go
 type TransactionManager interface {
@@ -273,9 +293,11 @@ type TransactionManager interface {
 }
 ```
 
-`DB` implements `TransactionManager`. The callback receives a transaction-bound `Node`.
+The callback receives a transaction-bound `Node`. The callback executes exactly once (`WriteTransaction` uses `bbolt.Update`, which never retries).
 
-`ReadTransaction` guarantees a read-only transaction. `WriteTransaction` guarantees a writable transaction. The explicit names avoid colliding with `TypeStore.Update`, because Go does not support method overloading. Nested transaction behavior must be rejected explicitly unless the callback is already using the transaction-bound node; Rainstorm must not silently open a second transaction.
+Read and write transactions guarantee their access mode through standard bbolt behavior.
+
+Manual `Begin`, `Commit`, `Rollback`, `WithTransaction`, and the public `Tx` abstraction were removed from the v6 primary API. Callers must use managed transactions for normal operations and `NativeDB` for advanced interoperability.
 
 ### 6.2 Commit algorithm
 
@@ -285,14 +307,18 @@ type TransactionManager interface {
 2. acquire/open the writable bbolt transaction;
 3. check the context again;
 4. invoke `fn` with a transaction-bound node;
-5. if `fn` returns an error, roll back and return that error;
+5. if `fn` returns an error, roll back and return that error (the callback error remains the primary cause and remains discoverable through `errors.Is`);
 6. check the context before commit;
 7. if canceled, roll back and return `ctx.Err()`;
 8. attempt commit;
 9. if commit fails, return the commit error;
-10. after successful commit, return success without converting a later cancellation into failure.
+10. after successful commit, return success — Rainstorm does not perform a context check that can retroactively report cancellation.
 
-Rollback errors must not erase the primary callback or context error. If both errors matter, Rainstorm will combine or wrap them in a form compatible with `errors.Is`.
+If the callback cancels the context and returns another error, the callback error remains the primary returned cause. Rollback errors do not erase the primary callback or context error.
+
+Panic values are not converted into errors: if `fn` panics, bbolt unwinds the transaction and the panic propagates unchanged to the caller. Rainstorm does not recover panics.
+
+`ReadTransaction` checks the context after its callback returns successfully and before the read transaction concludes. If the callback returns an error, that error remains the primary cause even if the callback also cancels the context. Rainstorm cannot roll back or suppress arbitrary external side effects that user callbacks perform before returning.
 
 ### 6.3 Batch mode
 
@@ -300,49 +326,49 @@ bbolt `Batch` may execute a callback more than once. That is unsafe for callback
 
 Therefore:
 
-- `WriteTransaction` must execute its callback exactly once;
-- v5's global `Batch()` behavior must not alter `WriteTransaction` semantics;
+- `WriteTransaction` executes its callback exactly once;
+- v5's global `Batch()` behavior does not alter `WriteTransaction` semantics;
 - v6.0 removes the `Batch()` open option, `WithBatch`, and implicit batch state;
 - v6.0 does not provide a batch replacement API;
 - a future explicit batch API may be considered only under a separate design that names its retry semantics and requires retry-safe callbacks.
 
-### 6.4 Manual transactions and native escape hatch
+### 6.4 Native escape hatch
 
-Manual `Begin`/`Commit`/`Rollback` will not be the recommended public path. Whether a low-level manual transaction API remains will be decided only after the managed API is complete.
+Manual `Begin`, `Commit`, `Rollback`, `WithTransaction`, and the public `Tx` abstraction are removed from the v6 primary API.
 
-Raw bbolt access must be isolated from the primary interfaces. If retained for advanced interoperability, it belongs behind an explicitly named native/unsafe escape hatch and its use weakens Rainstorm's cancellation guarantees. The v5 exported `DB.Bolt` field must not remain as an accidentally universal dependency.
-
-`UseDB` may remain as an opening adapter, but ownership must be explicit. v6 must not ambiguously close a caller-owned bbolt database. The API must distinguish ownership or document a single unambiguous rule.
+`NativeDB()` is the explicit advanced interoperability escape hatch. It returns the underlying `*bbolt.DB`. Caller-issued native operations are outside Rainstorm's operation wrapping: native writes can bypass codecs, indexes, metadata, and invariants. Rainstorm cannot guarantee cancellation, rollback composition, index consistency, or destination safety for native operations. Callers must coordinate native and Rainstorm transactions internally and must not close the native database while Rainstorm is active. Normal application code should prefer Rainstorm APIs and managed transactions.
 
 ## 7. Error model
 
-Existing sentinel meanings are retained where useful:
+Callers classify sentinel and wrapped cause errors using `errors.Is`, not string comparison or direct equality. If Rainstorm introduces a typed error with structured fields, callers use `errors.As` to inspect it.
+
+Operation errors use the format:
+
+```
+rainstorm <operation>: <cause>
+```
+
+Operation wrapping preserves sentinels, `context.Canceled`, `context.DeadlineExceeded`, relevant bbolt errors, callback errors, and codec errors through the error chain. Nested operation wrapping is allowed; the outermost public operation label remains visible. Operation labels must not include record contents, bucket values, keys, field values, or other sensitive dynamic data.
+
+Sentinel inventory:
 
 - `ErrNoID`;
 - `ErrZeroID`;
 - `ErrBadType`;
 - `ErrAlreadyExists`;
 - `ErrNilParam`;
+- `ErrNilContext`;
 - `ErrUnknownTag`;
 - `ErrIdxNotFound`;
-- pointer/target errors;
+- pointer/target errors (`ErrSlicePtrNeeded`, `ErrStructPtrNeeded`, `ErrPtrNeeded`);
 - `ErrNoName`;
 - `ErrNotFound`;
-- transaction-state errors;
 - `ErrIncompatibleValue`;
 - `ErrDifferentCodec`.
 
-Requirements:
+`ErrNilContext` and `ErrNilParam` are distinct sentinels. `ErrNotFound`, `ErrAlreadyExists`, `ErrNilParam`, and `ErrNilContext` are shared by identity between the root and index packages — the root package's sentinels point to the index package's definitions. `ErrNotInTransaction` was removed in v6.
 
-1. callers use `errors.Is`, not direct string comparison;
-2. wrapped errors preserve their underlying sentinel or context error;
-3. context cancellation returns an error matching `context.Canceled` or `context.DeadlineExceeded`;
-4. bbolt errors remain discoverable through wrapping where relevant;
-5. errors include operation context without leaking record data or secrets;
-6. spelling and documentation defects may be fixed in v6;
-7. typed errors are introduced only when callers need structured fields beyond a sentinel.
-
-A dedicated error audit will determine aliases, removals, and new transaction errors. No implementation phase may silently change error classification.
+Typed errors are introduced only when callers need structured fields beyond a sentinel.
 
 ## 8. Compatibility decisions
 
