@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,15 +22,30 @@ type CompatibilityUser struct {
 	Revision int
 }
 
+// CompatibilityNamedEvent matches the v5.3.0 BucketNamer type used in the generator.
+type CompatibilityNamedEvent struct {
+	ID       uint64 `rainstorm:"id,increment"`
+	Code     string `rainstorm:"unique"`
+	Category string `rainstorm:"index"`
+	Message  string
+}
+
+func (CompatibilityNamedEvent) RainstormBucketName() string {
+	return "compatibility_named_events"
+}
+
 // ------------- manifest types for test A -------------
 
 type compatManifest struct {
-	Source      compatSource    `json:"source"`
-	Codec       string          `json:"codec"`
-	RootRecords []compatRootRec `json:"root_records"`
-	Indexes     compatIndexes   `json:"indexes"`
-	Nested      compatNested    `json:"nested"`
-	KV          compatKVSection `json:"kv"`
+	Source          compatSource          `json:"source"`
+	Codec           string                `json:"codec"`
+	RootRecords     []compatRootRec       `json:"root_records"`
+	Indexes         compatIndexes         `json:"indexes"`
+	Nested          compatNested          `json:"nested"`
+	KV              compatKVSection       `json:"kv"`
+	BucketNamer     compatBucketNamer     `json:"bucket_namer"`
+	RuntimeExplicit compatRuntimeExplicit `json:"runtime_explicit"`
+	RuntimeRootData compatRuntimeRootData `json:"runtime_root_data"`
 }
 
 type compatSource struct {
@@ -89,6 +105,64 @@ type compatKVEntry struct {
 	Value interface{} `json:"value"`
 }
 
+// R6.5B1 manifest types.
+
+type compatBucketNamer struct {
+	GoTypeName       string               `json:"go_type_name"`
+	CustomBucketName string               `json:"custom_bucket_name"`
+	ReceiverForm     string               `json:"receiver_form"`
+	Records          []compatNamedRec     `json:"records"`
+	Indexes          compatBucketNamerIdx `json:"indexes"`
+}
+
+type compatNamedRec struct {
+	ID       uint64 `json:"id"`
+	Code     string `json:"code"`
+	Category string `json:"category"`
+	Message  string `json:"message"`
+}
+
+type compatBucketNamerIdx struct {
+	Category compatListIdx   `json:"category"`
+	Code     compatUniqueIdx `json:"code"`
+}
+
+type compatRuntimeExplicit struct {
+	Path           []string               `json:"path"`
+	GoType         string                 `json:"go_type"`
+	BucketBehavior string                 `json:"bucket_behavior"`
+	FieldSchema    map[string]compatField `json:"field_schema"`
+	Records        []compatRuntimeRec     `json:"records"`
+	Indexes        compatRuntimeIdx       `json:"indexes"`
+}
+
+type compatRuntimeRootData struct {
+	Path           []string               `json:"path"`
+	GoType         string                 `json:"go_type"`
+	BucketBehavior string                 `json:"bucket_behavior"`
+	FieldSchema    map[string]compatField `json:"field_schema"`
+	Records        []compatRuntimeRec     `json:"records"`
+	Indexes        compatRuntimeIdx       `json:"indexes"`
+}
+
+type compatField struct {
+	GoType string `json:"go_type"`
+	Tag    string `json:"tag"`
+}
+
+type compatRuntimeIdx struct {
+	Group compatListIdx   `json:"group"`
+	Slug  compatUniqueIdx `json:"slug"`
+}
+
+type compatRuntimeRec struct {
+	ID       uint64 `json:"id"`
+	Slug     string `json:"slug"`
+	Group    string `json:"group"`
+	Label    string `json:"label"`
+	Revision int    `json:"revision"`
+}
+
 // ------------- helpers -------------
 
 // fixturePath returns the package-relative path to baseline.db.
@@ -143,6 +217,85 @@ func readManifest(tb testing.TB) compatManifest {
 	return m
 }
 
+// makeRuntimeExplicitType returns the reflect.Type matching the runtime/explicit
+// schema used by the generator.
+func makeRuntimeExplicitType() reflect.Type {
+	return reflect.StructOf([]reflect.StructField{
+		{
+			Name: "ID",
+			Type: reflect.TypeOf(uint64(0)),
+			Tag:  reflect.StructTag(`rainstorm:"id,increment"`),
+		},
+		{
+			Name: "Slug",
+			Type: reflect.TypeOf(""),
+			Tag:  reflect.StructTag(`rainstorm:"unique"`),
+		},
+		{
+			Name: "Group",
+			Type: reflect.TypeOf(""),
+			Tag:  reflect.StructTag(`rainstorm:"index"`),
+		},
+		{
+			Name: "Label",
+			Type: reflect.TypeOf(""),
+		},
+		{
+			Name: "Revision",
+			Type: reflect.TypeOf(0),
+		},
+	})
+}
+
+// makeRuntimeRootDataType returns the reflect.Type matching the runtime/root-data
+// schema used by the generator (structurally identical to explicit).
+func makeRuntimeRootDataType() reflect.Type {
+	return reflect.StructOf([]reflect.StructField{
+		{
+			Name: "ID",
+			Type: reflect.TypeOf(uint64(0)),
+			Tag:  reflect.StructTag(`rainstorm:"id,increment"`),
+		},
+		{
+			Name: "Slug",
+			Type: reflect.TypeOf(""),
+			Tag:  reflect.StructTag(`rainstorm:"unique"`),
+		},
+		{
+			Name: "Group",
+			Type: reflect.TypeOf(""),
+			Tag:  reflect.StructTag(`rainstorm:"index"`),
+		},
+		{
+			Name: "Label",
+			Type: reflect.TypeOf(""),
+		},
+		{
+			Name: "Revision",
+			Type: reflect.TypeOf(0),
+		},
+	})
+}
+
+// runtimeRecFromValue extracts field values from a reflect.Value (pointer to runtime struct).
+func runtimeRecFromValue(v reflect.Value) compatRuntimeRec {
+	e := v.Elem()
+	return compatRuntimeRec{
+		ID:       e.FieldByName("ID").Uint(),
+		Slug:     e.FieldByName("Slug").String(),
+		Group:    e.FieldByName("Group").String(),
+		Label:    e.FieldByName("Label").String(),
+		Revision: int(e.FieldByName("Revision").Int()),
+	}
+}
+
+// runtimeSliceFromPtr extracts the slice from a pointer-to-slice reflect.Value.
+// Returns the slice value and its length.
+func runtimeSliceFromPtr(ptr reflect.Value) (reflect.Value, int) {
+	sl := ptr.Elem()
+	return sl, sl.Len()
+}
+
 // ------------- A. Provenance/manifest test -------------
 
 func TestCompatibility_Manifest(t *testing.T) {
@@ -162,6 +315,35 @@ func TestCompatibility_Manifest(t *testing.T) {
 	assert.Equal(t, "bob@example.test", emails[2])
 	assert.Equal(t, "carol@example.test", emails[3])
 	assert.Equal(t, "dave@example.test", emails[4])
+
+	// R6.5B1: bucket_namer section.
+	assert.Equal(t, "CompatibilityNamedEvent", m.BucketNamer.GoTypeName)
+	assert.Equal(t, "compatibility_named_events", m.BucketNamer.CustomBucketName)
+	assert.Len(t, m.BucketNamer.Records, 3)
+	assert.Equal(t, uint64(1), m.BucketNamer.Records[0].ID)
+	assert.Equal(t, "event-alpha", m.BucketNamer.Records[0].Code)
+	assert.Equal(t, uint64(2), m.BucketNamer.Records[1].ID)
+	assert.Equal(t, "event-beta", m.BucketNamer.Records[1].Code)
+	assert.Equal(t, uint64(3), m.BucketNamer.Records[2].ID)
+	assert.Equal(t, "event-gamma", m.BucketNamer.Records[2].Code)
+
+	// R6.5B1: runtime_explicit section.
+	assert.Equal(t, []string{"runtime", "explicit"}, m.RuntimeExplicit.Path)
+	assert.Len(t, m.RuntimeExplicit.Records, 3)
+	assert.Equal(t, uint64(1), m.RuntimeExplicit.Records[0].ID)
+	assert.Equal(t, "runtime-alpha", m.RuntimeExplicit.Records[0].Slug)
+	assert.Equal(t, uint64(2), m.RuntimeExplicit.Records[1].ID)
+	assert.Equal(t, "runtime-beta", m.RuntimeExplicit.Records[1].Slug)
+	assert.Equal(t, uint64(3), m.RuntimeExplicit.Records[2].ID)
+	assert.Equal(t, "runtime-gamma", m.RuntimeExplicit.Records[2].Slug)
+
+	// R6.5B1: runtime_root_data section.
+	assert.Equal(t, []string{"runtime", "root-data"}, m.RuntimeRootData.Path)
+	assert.Len(t, m.RuntimeRootData.Records, 2)
+	assert.Equal(t, uint64(1), m.RuntimeRootData.Records[0].ID)
+	assert.Equal(t, "root-runtime-alpha", m.RuntimeRootData.Records[0].Slug)
+	assert.Equal(t, uint64(2), m.RuntimeRootData.Records[1].ID)
+	assert.Equal(t, "root-runtime-beta", m.RuntimeRootData.Records[1].Slug)
 }
 
 // ------------- B. Open and baseline read -------------
@@ -647,4 +829,691 @@ func TestCompatibility_MetadataReopen(t *testing.T) {
 	err = db2.Get(ctx, "settings", "theme", &theme)
 	require.NoError(t, err)
 	assert.Equal(t, "dark", theme)
+}
+
+// ======================================================================
+// R6.5B1: BucketNamer, runtime struct, and extended fixture tests
+// ======================================================================
+
+// ------------- K. BucketNamer read -------------
+
+func TestCompatibility_BucketNamerRead(t *testing.T) {
+	path := copyFixture(t)
+	db := openFixture(t, path)
+	defer assertClose(t, db)
+
+	ctx := context.Background()
+
+	// Read all three named events via the custom bucket name.
+	// The v6 type CompatibilityNamedEvent implements RainstormBucketName
+	// which returns "compatibility_named_events", matching v5's custom bucket.
+	var all []CompatibilityNamedEvent
+	err := db.All(ctx, &all)
+	require.NoError(t, err)
+	require.Len(t, all, 3)
+
+	byCode := make(map[string]CompatibilityNamedEvent, 3)
+	for _, e := range all {
+		byCode[e.Code] = e
+	}
+
+	// Verify every record matches the manifest.
+	require.Contains(t, byCode, "event-alpha")
+	require.Contains(t, byCode, "event-beta")
+	require.Contains(t, byCode, "event-gamma")
+	alpha := byCode["event-alpha"]
+	assert.Equal(t, uint64(1), alpha.ID)
+	assert.Equal(t, "audit", alpha.Category)
+	assert.Equal(t, "Alpha", alpha.Message)
+
+	beta := byCode["event-beta"]
+	assert.Equal(t, uint64(2), beta.ID)
+	assert.Equal(t, "audit", beta.Category)
+	assert.Equal(t, "Beta", beta.Message)
+
+	gamma := byCode["event-gamma"]
+	assert.Equal(t, uint64(3), gamma.ID)
+	assert.Equal(t, "system", gamma.Category)
+	assert.Equal(t, "Gamma", gamma.Message)
+
+	// Category == audit returns exactly Alpha then Beta in order.
+	var audit []CompatibilityNamedEvent
+	err = db.Find(ctx, "Category", "audit", &audit)
+	require.NoError(t, err)
+	require.Len(t, audit, 2)
+	assert.Equal(t, uint64(1), audit[0].ID)
+	assert.Equal(t, "event-alpha", audit[0].Code)
+	assert.Equal(t, uint64(2), audit[1].ID)
+	assert.Equal(t, "event-beta", audit[1].Code)
+
+	// Code unique lookups resolve every record.
+	var ev1 CompatibilityNamedEvent
+	err = db.One(ctx, "Code", "event-alpha", &ev1)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(1), ev1.ID)
+	assert.Equal(t, "audit", ev1.Category)
+
+	var ev2 CompatibilityNamedEvent
+	err = db.One(ctx, "Code", "event-beta", &ev2)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(2), ev2.ID)
+
+	var ev3 CompatibilityNamedEvent
+	err = db.One(ctx, "Code", "event-gamma", &ev3)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(3), ev3.ID)
+	assert.Equal(t, "system", ev3.Category)
+
+	// Prove the default Go type-name bucket does NOT contain the data.
+	// If bucket naming didn't work, the type-name "CompatibilityNamedEvent" bucket
+	// would have been used, not "compatibility_named_events".
+	node := db.From("CompatibilityNamedEvent")
+	var wrongBucket []CompatibilityNamedEvent
+	err = node.All(ctx, &wrongBucket)
+	require.NoError(t, err)
+	require.Len(t, wrongBucket, 0, "Go type-name bucket must not contain named events")
+
+	// Root CompatibilityUser queries remain in their own bucket.
+	var users []CompatibilityUser
+	err = db.All(ctx, &users)
+	require.NoError(t, err)
+	require.Len(t, users, 4)
+}
+
+// ------------- L. BucketNamer v6 mutation -------------
+
+func TestCompatibility_BucketNamerV6Mutation(t *testing.T) {
+	path := copyFixture(t)
+	db := openFixture(t, path)
+	defer assertClose(t, db)
+
+	ctx := context.Background()
+
+	// Load event-alpha.
+	var alpha CompatibilityNamedEvent
+	err := db.One(ctx, "Code", "event-alpha", &alpha)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(1), alpha.ID)
+	assert.Equal(t, "audit", alpha.Category)
+
+	// Change Category from audit to system and change Message.
+	alpha.Category = "system"
+	alpha.Message = "Alpha Modified"
+	err = db.Update(ctx, &alpha)
+	require.NoError(t, err)
+
+	// Prove old Category (audit) no longer returns alpha.
+	var audit []CompatibilityNamedEvent
+	err = db.Find(ctx, "Category", "audit", &audit)
+	require.NoError(t, err)
+	require.Len(t, audit, 1)
+	assert.Equal(t, uint64(2), audit[0].ID)
+	assert.Equal(t, "event-beta", audit[0].Code)
+
+	// Prove new Category (system) now contains alpha.
+	var system []CompatibilityNamedEvent
+	err = db.Find(ctx, "Category", "system", &system)
+	require.NoError(t, err)
+	foundAlpha := false
+	for _, e := range system {
+		if e.ID == uint64(1) {
+			foundAlpha = true
+			assert.Equal(t, "Alpha Modified", e.Message)
+		}
+	}
+	assert.True(t, foundAlpha, "alpha should be in system after update")
+	assert.Equal(t, 2, len(system)) // alpha and gamma
+
+	// Code unique lookup remains correct after update.
+	var updatedAlpha CompatibilityNamedEvent
+	err = db.One(ctx, "Code", "event-alpha", &updatedAlpha)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(1), updatedAlpha.ID)
+	assert.Equal(t, "system", updatedAlpha.Category)
+	assert.Equal(t, "Alpha Modified", updatedAlpha.Message)
+
+	// Delete event-beta.
+	var beta CompatibilityNamedEvent
+	err = db.One(ctx, "Code", "event-beta", &beta)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(2), beta.ID)
+
+	err = db.DeleteStruct(ctx, &beta)
+	require.NoError(t, err)
+
+	// Direct lookup fails with ErrNotFound.
+	err = db.One(ctx, "Code", "event-beta", &beta)
+	require.ErrorIs(t, err, ErrNotFound)
+
+	// Audit index no longer contains beta.
+	var auditAfter []CompatibilityNamedEvent
+	err = db.Find(ctx, "Category", "audit", &auditAfter)
+	require.ErrorIs(t, err, ErrNotFound)
+	require.Len(t, auditAfter, 0)
+
+	// Save a new record reusing Code event-beta.
+	newEv := CompatibilityNamedEvent{
+		Code:     "event-beta",
+		Category: "system",
+		Message:  "Reused Beta",
+	}
+	err = db.Save(ctx, &newEv)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(4), newEv.ID, "next incremented ID after max (3)")
+
+	// Prove new record is readable via Code.
+	var newBeta CompatibilityNamedEvent
+	err = db.One(ctx, "Code", "event-beta", &newBeta)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(4), newBeta.ID)
+	assert.Equal(t, "system", newBeta.Category)
+	assert.Equal(t, "Reused Beta", newBeta.Message)
+
+	// Unrelated event-gamma remains unchanged.
+	var gamma CompatibilityNamedEvent
+	err = db.One(ctx, "Code", "event-gamma", &gamma)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(3), gamma.ID)
+	assert.Equal(t, "system", gamma.Category)
+	assert.Equal(t, "Gamma", gamma.Message)
+}
+
+// ------------- M. Runtime explicit read -------------
+
+func TestCompatibility_RuntimeExplicitRead(t *testing.T) {
+	path := copyFixture(t)
+	db := openFixture(t, path)
+	defer assertClose(t, db)
+
+	ctx := context.Background()
+	m := readManifest(t)
+
+	runtimeType := makeRuntimeExplicitType()
+	node := db.From("runtime", "explicit")
+
+	// Read all three records via All.
+	sliceType := reflect.SliceOf(reflect.PtrTo(runtimeType))
+	resultsPtr := reflect.New(sliceType)
+	err := node.All(ctx, resultsPtr.Interface())
+	require.NoError(t, err)
+
+	sl, n := runtimeSliceFromPtr(resultsPtr)
+	require.Equal(t, 3, n)
+
+	// Build lookup by Slug.
+	bySlug := make(map[string]compatRuntimeRec, 3)
+	for i := 0; i < n; i++ {
+		r := runtimeRecFromValue(sl.Index(i))
+		bySlug[r.Slug] = r
+	}
+
+	// Verify every record matches manifest.
+	require.Contains(t, bySlug, "runtime-alpha")
+	require.Contains(t, bySlug, "runtime-beta")
+	require.Contains(t, bySlug, "runtime-gamma")
+	alpha := bySlug["runtime-alpha"]
+	assert.Equal(t, uint64(1), alpha.ID)
+	assert.Equal(t, "group-shared", alpha.Group)
+	assert.Equal(t, "Runtime Alpha", alpha.Label)
+	assert.Equal(t, 1, alpha.Revision)
+
+	beta := bySlug["runtime-beta"]
+	assert.Equal(t, uint64(2), beta.ID)
+	assert.Equal(t, "group-shared", beta.Group)
+	assert.Equal(t, "Runtime Beta", beta.Label)
+	assert.Equal(t, 1, beta.Revision)
+
+	gamma := bySlug["runtime-gamma"]
+	assert.Equal(t, uint64(3), gamma.ID)
+	assert.Equal(t, "group-other", gamma.Group)
+	assert.Equal(t, "Runtime Gamma", gamma.Label)
+	assert.Equal(t, 2, gamma.Revision)
+
+	// Group == group-shared returns exactly alpha and beta in order.
+	findSliceType := reflect.SliceOf(reflect.PtrTo(runtimeType))
+	findResults := reflect.New(findSliceType)
+	err = node.Find(ctx, "Group", "group-shared", findResults.Interface())
+	require.NoError(t, err)
+	findSl, findN := runtimeSliceFromPtr(findResults)
+	require.Equal(t, 2, findN)
+	assert.Equal(t, uint64(1), findSl.Index(0).Elem().FieldByName("ID").Uint())
+	assert.Equal(t, "runtime-alpha", findSl.Index(0).Elem().FieldByName("Slug").String())
+	assert.Equal(t, uint64(2), findSl.Index(1).Elem().FieldByName("ID").Uint())
+	assert.Equal(t, "runtime-beta", findSl.Index(1).Elem().FieldByName("Slug").String())
+
+	// Every Slug unique lookup resolves correctly.
+	for slug, expectedID := range m.RuntimeExplicit.Indexes.Slug.Lookups {
+		oneResult := reflect.New(runtimeType).Interface()
+		err = node.One(ctx, "Slug", slug, oneResult)
+		require.NoError(t, err)
+		assert.Equal(t, expectedID, reflect.ValueOf(oneResult).Elem().FieldByName("ID").Uint(),
+			"slug %s should resolve to ID %d", slug, expectedID)
+	}
+
+	// Root CompatibilityUser queries do not include runtime records.
+	var users []CompatibilityUser
+	err = db.All(ctx, &users)
+	require.NoError(t, err)
+	require.Len(t, users, 4)
+
+	// Anonymous runtime types require an explicit node because they have no
+	// static bucket name. This is an API precondition, not an isolation proof.
+	emptyResults := reflect.New(findSliceType)
+	err = db.Find(ctx, "Slug", "runtime-alpha", emptyResults.Interface())
+	require.ErrorIs(t, err, ErrNoName)
+}
+
+// ------------- N. Runtime explicit v6 mutation -------------
+
+func TestCompatibility_RuntimeExplicitV6Mutation(t *testing.T) {
+	path := copyFixture(t)
+	db := openFixture(t, path)
+	defer assertClose(t, db)
+
+	ctx := context.Background()
+
+	runtimeType := makeRuntimeExplicitType()
+	node := db.From("runtime", "explicit")
+
+	// Load runtime-alpha via its unique Slug.
+	alphaPtr := reflect.New(runtimeType).Interface()
+	err := node.One(ctx, "Slug", "runtime-alpha", alphaPtr)
+	require.NoError(t, err)
+	alphaVal := reflect.ValueOf(alphaPtr).Elem()
+	assert.Equal(t, uint64(1), alphaVal.FieldByName("ID").Uint())
+	assert.Equal(t, "group-shared", alphaVal.FieldByName("Group").String())
+
+	// Mutate Group, Label, and Revision using reflection.
+	alphaVal.FieldByName("Group").SetString("group-other")
+	alphaVal.FieldByName("Label").SetString("Runtime Alpha Modified")
+	alphaVal.FieldByName("Revision").SetInt(99)
+
+	err = node.Update(ctx, alphaPtr)
+	require.NoError(t, err)
+
+	// Read it back and verify all changed fields.
+	updatedPtr := reflect.New(runtimeType).Interface()
+	err = node.One(ctx, "Slug", "runtime-alpha", updatedPtr)
+	require.NoError(t, err)
+	updatedVal := reflect.ValueOf(updatedPtr).Elem()
+	assert.Equal(t, uint64(1), updatedVal.FieldByName("ID").Uint())
+	assert.Equal(t, "group-other", updatedVal.FieldByName("Group").String())
+	assert.Equal(t, "Runtime Alpha Modified", updatedVal.FieldByName("Label").String())
+	assert.Equal(t, int64(99), updatedVal.FieldByName("Revision").Int())
+
+	// Prove old Group index loses it.
+	sliceType := reflect.SliceOf(reflect.PtrTo(runtimeType))
+	oldGroupResults := reflect.New(sliceType)
+	err = node.Find(ctx, "Group", "group-shared", oldGroupResults.Interface())
+	require.NoError(t, err)
+	oldSl, oldN := runtimeSliceFromPtr(oldGroupResults)
+	require.Equal(t, 1, oldN)
+	assert.Equal(t, uint64(2), oldSl.Index(0).Elem().FieldByName("ID").Uint()) // only beta
+	assert.Equal(t, "runtime-beta", oldSl.Index(0).Elem().FieldByName("Slug").String())
+
+	// Prove new Group index contains alpha and the pre-existing gamma.
+	newGroupResults := reflect.New(sliceType)
+	err = node.Find(ctx, "Group", "group-other", newGroupResults.Interface())
+	require.NoError(t, err)
+	newSl, newN := runtimeSliceFromPtr(newGroupResults)
+	require.Equal(t, 2, newN)
+	require.Equal(t, uint64(1), newSl.Index(0).Elem().FieldByName("ID").Uint())
+	require.Equal(t, "runtime-alpha", newSl.Index(0).Elem().FieldByName("Slug").String())
+	require.Equal(t, uint64(3), newSl.Index(1).Elem().FieldByName("ID").Uint())
+	require.Equal(t, "runtime-gamma", newSl.Index(1).Elem().FieldByName("Slug").String())
+
+	// Slug unique lookup remains correct after update.
+	slugPtr := reflect.New(runtimeType).Interface()
+	err = node.One(ctx, "Slug", "runtime-alpha", slugPtr)
+	require.NoError(t, err)
+	assert.Equal(t, "Runtime Alpha Modified", reflect.ValueOf(slugPtr).Elem().FieldByName("Label").String())
+
+	// Delete runtime-beta.
+	betaPtr := reflect.New(runtimeType).Interface()
+	err = node.One(ctx, "Slug", "runtime-beta", betaPtr)
+	require.NoError(t, err)
+	betaVal := reflect.ValueOf(betaPtr).Elem()
+	assert.Equal(t, uint64(2), betaVal.FieldByName("ID").Uint())
+
+	err = node.DeleteStruct(ctx, betaPtr)
+	require.NoError(t, err)
+
+	// Prove direct lookup fails with ErrNotFound.
+	err = node.One(ctx, "Slug", "runtime-beta", reflect.New(runtimeType).Interface())
+	require.ErrorIs(t, err, ErrNotFound)
+
+	// Group index cleanup: group-shared now empty.
+	err = node.Find(ctx, "Group", "group-shared", oldGroupResults.Interface())
+	require.ErrorIs(t, err, ErrNotFound)
+
+	// Save a new runtime value reusing runtime-beta's Slug.
+	newPtr := reflect.New(runtimeType)
+	newVal := newPtr.Elem()
+	newVal.FieldByName("Slug").SetString("runtime-beta")
+	newVal.FieldByName("Group").SetString("group-new")
+	newVal.FieldByName("Label").SetString("Runtime Beta New")
+	newVal.FieldByName("Revision").SetInt(10)
+	err = node.Save(ctx, newPtr.Interface())
+	require.NoError(t, err)
+	assert.Equal(t, uint64(4), newVal.FieldByName("ID").Uint(), "next ID")
+
+	// Prove new record readable.
+	reusedPtr := reflect.New(runtimeType).Interface()
+	err = node.One(ctx, "Slug", "runtime-beta", reusedPtr)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(4), reflect.ValueOf(reusedPtr).Elem().FieldByName("ID").Uint())
+	assert.Equal(t, "Runtime Beta New", reflect.ValueOf(reusedPtr).Elem().FieldByName("Label").String())
+
+	// runtime-gamma remains unchanged.
+	gammaPtr := reflect.New(runtimeType).Interface()
+	err = node.One(ctx, "Slug", "runtime-gamma", gammaPtr)
+	require.NoError(t, err)
+	gammaVal := reflect.ValueOf(gammaPtr).Elem()
+	assert.Equal(t, uint64(3), gammaVal.FieldByName("ID").Uint())
+	assert.Equal(t, "group-other", gammaVal.FieldByName("Group").String())
+	assert.Equal(t, "Runtime Gamma", gammaVal.FieldByName("Label").String())
+}
+
+// ------------- O. Runtime root-data read -------------
+
+func TestCompatibility_RuntimeRootDataRead(t *testing.T) {
+	path := copyFixture(t)
+	db := openFixture(t, path)
+	defer assertClose(t, db)
+
+	ctx := context.Background()
+	m := readManifest(t)
+
+	runtimeType := makeRuntimeRootDataType()
+	node := db.From("runtime", "root-data")
+
+	// Read all records via All. The node root itself is the data bucket.
+	sliceType := reflect.SliceOf(reflect.PtrTo(runtimeType))
+	resultsPtr := reflect.New(sliceType)
+	err := node.All(ctx, resultsPtr.Interface())
+	require.NoError(t, err)
+
+	sl, n := runtimeSliceFromPtr(resultsPtr)
+	require.Equal(t, 2, n)
+
+	bySlug := make(map[string]compatRuntimeRec, 2)
+	for i := 0; i < n; i++ {
+		r := runtimeRecFromValue(sl.Index(i))
+		bySlug[r.Slug] = r
+	}
+
+	// Verify exactly two records match manifest.
+	require.Contains(t, bySlug, "root-runtime-alpha")
+	require.Contains(t, bySlug, "root-runtime-beta")
+	alpha := bySlug["root-runtime-alpha"]
+	assert.Equal(t, uint64(1), alpha.ID)
+	assert.Equal(t, "root-group", alpha.Group)
+	assert.Equal(t, "Root Runtime Alpha", alpha.Label)
+	assert.Equal(t, 3, alpha.Revision)
+
+	beta := bySlug["root-runtime-beta"]
+	assert.Equal(t, uint64(2), beta.ID)
+	assert.Equal(t, "root-group", beta.Group)
+	assert.Equal(t, "Root Runtime Beta", beta.Label)
+	assert.Equal(t, 4, beta.Revision)
+
+	// Group index works: root-group returns both in order.
+	findSliceType := reflect.SliceOf(reflect.PtrTo(runtimeType))
+	findResults := reflect.New(findSliceType)
+	err = node.Find(ctx, "Group", "root-group", findResults.Interface())
+	require.NoError(t, err)
+	findSl, findN := runtimeSliceFromPtr(findResults)
+	require.Equal(t, 2, findN)
+	assert.Equal(t, uint64(1), findSl.Index(0).Elem().FieldByName("ID").Uint())
+	assert.Equal(t, "root-runtime-alpha", findSl.Index(0).Elem().FieldByName("Slug").String())
+	assert.Equal(t, uint64(2), findSl.Index(1).Elem().FieldByName("ID").Uint())
+	assert.Equal(t, "root-runtime-beta", findSl.Index(1).Elem().FieldByName("Slug").String())
+
+	// Slug unique lookups work.
+	for slug, expectedID := range m.RuntimeRootData.Indexes.Slug.Lookups {
+		oneResult := reflect.New(runtimeType).Interface()
+		err = node.One(ctx, "Slug", slug, oneResult)
+		require.NoError(t, err)
+		assert.Equal(t, expectedID, reflect.ValueOf(oneResult).Elem().FieldByName("ID").Uint(),
+			"slug %s should resolve to ID %d", slug, expectedID)
+	}
+
+	// The separate runtime/explicit path does not contain root-data records.
+	explicitNode := db.From("runtime", "explicit")
+	otherResults := reflect.New(sliceType)
+	err = explicitNode.Find(ctx, "Slug", "root-runtime-alpha", otherResults.Interface())
+	require.ErrorIs(t, err, ErrNotFound)
+	require.Zero(t, otherResults.Elem().Len())
+
+	// Existing root named-type datasets remain intact in their own buckets.
+	var users []CompatibilityUser
+	err = db.All(ctx, &users)
+	require.NoError(t, err)
+	require.Len(t, users, 4)
+	var events []CompatibilityNamedEvent
+	err = db.All(ctx, &events)
+	require.NoError(t, err)
+	require.Len(t, events, 3)
+}
+
+// ------------- P. Runtime root-data v6 mutation -------------
+
+func TestCompatibility_RuntimeRootDataV6Mutation(t *testing.T) {
+	path := copyFixture(t)
+	ctx := context.Background()
+
+	runtimeType := makeRuntimeRootDataType()
+	nodePath := []string{"runtime", "root-data"}
+
+	// First session: mutate and verify.
+	var nextID uint64
+	func() {
+		db := openFixture(t, path)
+		defer assertClose(t, db)
+
+		node := db.From(nodePath...)
+
+		// Load root-runtime-alpha.
+		alphaPtr := reflect.New(runtimeType).Interface()
+		err := node.One(ctx, "Slug", "root-runtime-alpha", alphaPtr)
+		require.NoError(t, err)
+		alphaVal := reflect.ValueOf(alphaPtr).Elem()
+		assert.Equal(t, uint64(1), alphaVal.FieldByName("ID").Uint())
+
+		// Update: change Group, Label, Revision.
+		alphaVal.FieldByName("Group").SetString("root-group-modified")
+		alphaVal.FieldByName("Label").SetString("Root Alpha Updated")
+		alphaVal.FieldByName("Revision").SetInt(42)
+		err = node.Update(ctx, alphaPtr)
+		require.NoError(t, err)
+
+		// Read back and verify.
+		updatedPtr := reflect.New(runtimeType).Interface()
+		err = node.One(ctx, "Slug", "root-runtime-alpha", updatedPtr)
+		require.NoError(t, err)
+		updatedVal := reflect.ValueOf(updatedPtr).Elem()
+		assert.Equal(t, uint64(1), updatedVal.FieldByName("ID").Uint())
+		assert.Equal(t, "root-group-modified", updatedVal.FieldByName("Group").String())
+		assert.Equal(t, "Root Alpha Updated", updatedVal.FieldByName("Label").String())
+		assert.Equal(t, int64(42), updatedVal.FieldByName("Revision").Int())
+
+		// Old Group index no longer contains alpha.
+		sliceType := reflect.SliceOf(reflect.PtrTo(runtimeType))
+		oldResults := reflect.New(sliceType)
+		err = node.Find(ctx, "Group", "root-group", oldResults.Interface())
+		require.NoError(t, err)
+		oldSl, oldN := runtimeSliceFromPtr(oldResults)
+		require.Equal(t, 1, oldN)
+		assert.Equal(t, uint64(2), oldSl.Index(0).Elem().FieldByName("ID").Uint()) // only beta
+
+		// New Group index contains alpha.
+		newResults := reflect.New(sliceType)
+		err = node.Find(ctx, "Group", "root-group-modified", newResults.Interface())
+		require.NoError(t, err)
+		newSl, newN := runtimeSliceFromPtr(newResults)
+		require.Equal(t, 1, newN)
+		assert.Equal(t, uint64(1), newSl.Index(0).Elem().FieldByName("ID").Uint())
+
+		// Delete root-runtime-beta.
+		betaPtr := reflect.New(runtimeType).Interface()
+		err = node.One(ctx, "Slug", "root-runtime-beta", betaPtr)
+		require.NoError(t, err)
+		err = node.DeleteStruct(ctx, betaPtr)
+		require.NoError(t, err)
+
+		// Prove deleted: lookup fails with ErrNotFound.
+		err = node.One(ctx, "Slug", "root-runtime-beta", reflect.New(runtimeType).Interface())
+		require.ErrorIs(t, err, ErrNotFound)
+
+		// root-group index now empty.
+		err = node.Find(ctx, "Group", "root-group", oldResults.Interface())
+		require.ErrorIs(t, err, ErrNotFound)
+
+		// Save a replacement reusing the deleted unique Slug.
+		newPtr := reflect.New(runtimeType)
+		newVal := newPtr.Elem()
+		newVal.FieldByName("Slug").SetString("root-runtime-beta")
+		newVal.FieldByName("Group").SetString("root-group-replacement")
+		newVal.FieldByName("Label").SetString("Replacement Beta")
+		newVal.FieldByName("Revision").SetInt(99)
+		err = node.Save(ctx, newPtr.Interface())
+		require.NoError(t, err)
+		nextID = newVal.FieldByName("ID").Uint()
+		assert.Equal(t, uint64(3), nextID, "next incremented ID after max (2)")
+
+		// Prove replacement readable via Slug.
+		reusedPtr := reflect.New(runtimeType).Interface()
+		err = node.One(ctx, "Slug", "root-runtime-beta", reusedPtr)
+		require.NoError(t, err)
+		assert.Equal(t, "Replacement Beta", reflect.ValueOf(reusedPtr).Elem().FieldByName("Label").String())
+	}()
+
+	// Reopen with v6 and prove all changes persist.
+	db2, err := Open(context.Background(), path)
+	require.NoError(t, err, "reopen after runtime root-data mutations")
+	defer assertClose(t, db2)
+
+	node2 := db2.From(nodePath...)
+
+	// alpha update persisted.
+	alphaPtr := reflect.New(runtimeType).Interface()
+	err = node2.One(ctx, "Slug", "root-runtime-alpha", alphaPtr)
+	require.NoError(t, err)
+	alphaVal := reflect.ValueOf(alphaPtr).Elem()
+	assert.Equal(t, uint64(1), alphaVal.FieldByName("ID").Uint())
+	assert.Equal(t, "root-group-modified", alphaVal.FieldByName("Group").String())
+	assert.Equal(t, "Root Alpha Updated", alphaVal.FieldByName("Label").String())
+	assert.Equal(t, int64(42), alphaVal.FieldByName("Revision").Int())
+
+	// beta delete and replacement persisted: Slug "root-runtime-beta"
+	// now resolves to the replacement (ID 3).
+	betaSlugPtr := reflect.New(runtimeType).Interface()
+	err = node2.One(ctx, "Slug", "root-runtime-beta", betaSlugPtr)
+	require.NoError(t, err)
+	betaSlugVal := reflect.ValueOf(betaSlugPtr).Elem()
+	assert.Equal(t, uint64(3), betaSlugVal.FieldByName("ID").Uint())
+	assert.Equal(t, "Replacement Beta", betaSlugVal.FieldByName("Label").String())
+
+	// Old beta ID (2) is gone.
+	oldBetaPtr := reflect.New(runtimeType).Interface()
+	err = node2.One(ctx, "ID", uint64(2), oldBetaPtr)
+	require.ErrorIs(t, err, ErrNotFound)
+
+	// replacement persisted via its ID.
+	reusedPtr := reflect.New(runtimeType).Interface()
+	err = node2.One(ctx, "ID", nextID, reusedPtr)
+	require.NoError(t, err)
+	assert.Equal(t, "root-runtime-beta", reflect.ValueOf(reusedPtr).Elem().FieldByName("Slug").String())
+	assert.Equal(t, "Replacement Beta", reflect.ValueOf(reusedPtr).Elem().FieldByName("Label").String())
+
+	// Replacement index works.
+	sliceType := reflect.SliceOf(reflect.PtrTo(runtimeType))
+	repResults := reflect.New(sliceType)
+	err = node2.Find(ctx, "Group", "root-group-replacement", repResults.Interface())
+	require.NoError(t, err)
+	repSl, repN := runtimeSliceFromPtr(repResults)
+	require.Equal(t, 1, repN)
+	assert.Equal(t, "Replacement Beta", repSl.Index(0).Elem().FieldByName("Label").String())
+}
+
+// ------------- Q. Extended fixture baseline integrity -------------
+
+func TestCompatibility_ExtendedFixtureBaselineIntegrity(t *testing.T) {
+	path := copyFixture(t)
+	db := openFixture(t, path)
+	defer assertClose(t, db)
+
+	ctx := context.Background()
+	m := readManifest(t)
+
+	// Four CompatibilityUser root records remain exact.
+	var users []CompatibilityUser
+	err := db.All(ctx, &users)
+	require.NoError(t, err)
+	require.Len(t, users, 4)
+
+	byID := make(map[uint64]CompatibilityUser, 4)
+	for _, u := range users {
+		byID[u.ID] = u
+	}
+	for _, r := range m.RootRecords {
+		u := byID[r.ID]
+		assert.Equal(t, r.Email, u.Email)
+		assert.Equal(t, r.Team, u.Team)
+		assert.Equal(t, r.Name, u.Name)
+		assert.Equal(t, r.Revision, u.Revision)
+	}
+
+	// Next root CompatibilityUser ID remains 5.
+	newUser := CompatibilityUser{
+		Email:    "extended@example.test",
+		Team:     "team-ext",
+		Name:     "Ext",
+		Revision: 1,
+	}
+	err = db.Save(ctx, &newUser)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(5), newUser.ID)
+
+	// Root Team and Email indexes remain valid.
+	var blue []CompatibilityUser
+	err = db.Find(ctx, "Team", "team-blue", &blue)
+	require.NoError(t, err)
+	require.Len(t, blue, 2)
+	assert.Equal(t, "alice@example.test", blue[0].Email)
+	assert.Equal(t, "bob@example.test", blue[1].Email)
+
+	for email, id := range m.Indexes.Email.Lookups {
+		var u CompatibilityUser
+		err = db.One(ctx, "Email", email, &u)
+		require.NoError(t, err)
+		assert.Equal(t, id, u.ID)
+	}
+
+	// Nested CompatibilityUser remains exact.
+	nested := db.From("tenant", "acme")
+	var nestedUsers []CompatibilityUser
+	err = nested.All(ctx, &nestedUsers)
+	require.NoError(t, err)
+	require.Len(t, nestedUsers, 1)
+	assert.Equal(t, "nested@example.test", nestedUsers[0].Email)
+	assert.Equal(t, "team-nested", nestedUsers[0].Team)
+	assert.Equal(t, "Nested User", nestedUsers[0].Name)
+	assert.Equal(t, 5, nestedUsers[0].Revision)
+
+	// Root and nested KV remain exact.
+	var theme string
+	err = db.Get(ctx, "settings", "theme", &theme)
+	require.NoError(t, err)
+	assert.Equal(t, "dark", theme)
+
+	var retries int
+	err = db.Get(ctx, "settings", "retries", &retries)
+	require.NoError(t, err)
+	assert.Equal(t, 3, retries)
+
+	var region string
+	err = nested.Get(ctx, "settings", "region", &region)
+	require.NoError(t, err)
+	assert.Equal(t, "us-test-1", region)
 }

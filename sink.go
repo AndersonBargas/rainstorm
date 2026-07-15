@@ -399,14 +399,15 @@ func newListSink(node Node, to interface{}) (*listSink, error) {
 	// Resolve bucket name: prefer BucketNamer on the element,
 	// fall back to static type name. Empty name is allowed for
 	// anonymous types when the caller provides the bucket later.
-	name := elemType.Name()
-	if name == "" {
-		proto := reflect.New(elemType)
-		if proto.Elem().CanInterface() {
-			if bn, ok := proto.Elem().Interface().(BucketNamer); ok {
-				name = bn.RainstormBucketName()
-			}
+	name := ""
+	proto := reflect.New(elemType)
+	if proto.Elem().CanInterface() {
+		if bn, ok := proto.Elem().Interface().(BucketNamer); ok {
+			name = bn.RainstormBucketName()
 		}
+	}
+	if name == "" {
+		name = elemType.Name()
 	}
 
 	return &listSink{

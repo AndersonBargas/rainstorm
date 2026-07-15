@@ -547,3 +547,67 @@ func TestBucketNamerDrop(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+// ============================================================================
+// Regression: newListSink must resolve BucketNamer before static type name.
+// This proves All/Find on named value-receiver BucketNamer types work.
+// ============================================================================
+
+func TestBucketNamerListSinkResolution(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "rainstorm.db")
+	ctx := context.Background()
+	db, err := Open(ctx, file)
+	require.NoError(t, err)
+	defer func() {
+		err := db.Close()
+		require.NoError(t, err)
+	}()
+
+	// Use NamerUser: Go type name is "NamerUser", RainstormBucketName is "namer_users".
+	users := []NamerUser{
+		{Name: "Alice", Email: "alice@test.com"},
+		{Name: "Bob", Email: "bob@test.com"},
+	}
+	for i := range users {
+		err := db.Save(ctx, &users[i])
+		require.NoError(t, err)
+	}
+
+	// All: must read both records from the custom bucket.
+	var all []NamerUser
+	err = db.All(ctx, &all)
+	require.NoError(t, err)
+	require.Len(t, all, 2)
+
+	byName := make(map[string]NamerUser, 2)
+	for _, u := range all {
+		byName[u.Name] = u
+	}
+	require.Contains(t, byName, "Alice")
+	require.Contains(t, byName, "Bob")
+	require.Equal(t, "alice@test.com", byName["Alice"].Email)
+	require.Equal(t, "bob@test.com", byName["Bob"].Email)
+
+	// Find on indexed field must read records from the custom bucket.
+	var aliceResults []NamerUser
+	err = db.Find(ctx, "Name", "Alice", &aliceResults)
+	require.NoError(t, err)
+	require.Len(t, aliceResults, 1)
+	require.Equal(t, "Alice", aliceResults[0].Name)
+
+	// Prove the Go type-name bucket is not being used.
+	// With the fix: db.All should read from "namer_users" (via BucketNamer).
+	// Without the fix: db.All would read from "NamerUser" and return empty.
+	// So db.From("NamerUser") reading should be empty regardless (data is not stored there).
+	goTypeNode := db.From("NamerUser")
+	var goTypeAll []NamerUser
+	err = goTypeNode.All(ctx, &goTypeAll)
+	require.NoError(t, err)
+	require.Len(t, goTypeAll, 0, "Go type-name bucket must not contain the data")
+
+	// Unique lookup also works (routed through a different sink path).
+	var bob NamerUser
+	err = db.One(ctx, "Email", "bob@test.com", &bob)
+	require.NoError(t, err)
+	require.Equal(t, "Bob", bob.Name)
+}
