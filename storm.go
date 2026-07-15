@@ -156,14 +156,21 @@ func (s *DB) Close() error {
 }
 
 func (s *DB) checkVersion(ctx context.Context) error {
-	var v string
-	err := s.Get(ctx, dbinfo, "version", &v)
-	if err != nil && !errors.Is(err, ErrNotFound) {
+	// Read the encoded value separately so a decode failure can be classified
+	// as an incompatible codec while preserving the underlying codec error.
+	raw, err := s.GetBytes(ctx, dbinfo, "version")
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return s.Set(ctx, dbinfo, "version", Version)
+		}
 		return err
 	}
 
-	// for now, we only set the current version if it doesn't exist.
-	// v1 and v2 database files are compatible.
+	var v string
+	err = s.Codec().Unmarshal(raw, &v)
+	if err != nil {
+		return errors.Join(ErrDifferentCodec, err)
+	}
 	if v == "" {
 		return s.Set(ctx, dbinfo, "version", Version)
 	}
