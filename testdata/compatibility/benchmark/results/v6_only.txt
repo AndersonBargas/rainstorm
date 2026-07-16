@@ -1,0 +1,21 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/AndersonBargas/rainstorm/testdata/compatibility/benchmark
+cpu: Apple M4
+BenchmarkV6_ReadTransaction-10     	    3283	    181471 ns/op	  120112 B/op	    1902 allocs/op
+BenchmarkV6_ReadTransaction-10     	    3297	    181510 ns/op	  120112 B/op	    1902 allocs/op
+BenchmarkV6_ReadTransaction-10     	    3291	    181992 ns/op	  120112 B/op	    1902 allocs/op
+BenchmarkV6_ReadTransaction-10     	    3284	    181706 ns/op	  120112 B/op	    1902 allocs/op
+BenchmarkV6_ReadTransaction-10     	    3295	    181919 ns/op	  120112 B/op	    1902 allocs/op
+BenchmarkV6_WriteTransaction-10    	   62974	      9469 ns/op	   19677 B/op	      74 allocs/op
+BenchmarkV6_WriteTransaction-10    	   63063	      9491 ns/op	   19680 B/op	      74 allocs/op
+BenchmarkV6_WriteTransaction-10    	   62968	      9512 ns/op	   19679 B/op	      74 allocs/op
+BenchmarkV6_WriteTransaction-10    	   62961	      9523 ns/op	   19679 B/op	      74 allocs/op
+BenchmarkV6_WriteTransaction-10    	   62394	      9636 ns/op	   19676 B/op	      74 allocs/op
+BenchmarkV6_CanceledContext-10     	 5797334	       102.9 ns/op	     112 B/op	       4 allocs/op
+BenchmarkV6_CanceledContext-10     	 5798574	       103.3 ns/op	     112 B/op	       4 allocs/op
+BenchmarkV6_CanceledContext-10     	 5811482	       102.9 ns/op	     112 B/op	       4 allocs/op
+BenchmarkV6_CanceledContext-10     	 5842815	       102.9 ns/op	     112 B/op	       4 allocs/op
+BenchmarkV6_CanceledContext-10     	 5852844	       102.5 ns/op	     112 B/op	       4 allocs/op
+PASS
+ok  	github.com/AndersonBargas/rainstorm/testdata/compatibility/benchmark	11.460s
