@@ -8,7 +8,9 @@ import (
 
 const name = "protobuf"
 
-// More details on Protocol Buffers https://github.com/golang/protobuf
+// Codec that encodes to and decodes from Protocol Buffers.
+// If the value does not implement proto.Message, JSON is used as a fallback.
+// More details on Protocol Buffers: https://github.com/golang/protobuf
 var Codec = new(protobufCodec)
 
 type protobufCodec int

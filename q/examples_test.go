@@ -48,9 +48,15 @@ type User struct {
 }
 
 func prepareDB() (string, *rainstorm.DB) {
-	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
+	dir, err := os.MkdirTemp(os.TempDir(), "rainstorm")
+	if err != nil {
+		log.Fatal(err)
+	}
 	ctx := context.Background()
-	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
+	db, err := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	for i, name := range []string{"John", "Norm", "Donald", "Eric", "Dilbert"} {
 		email := strings.ToLower(name + "@provider.com")
@@ -61,7 +67,7 @@ func prepareDB() (string, *rainstorm.DB) {
 			Age:       21 + i,
 			CreatedAt: time.Now(),
 		}
-		err := db.Save(ctx, &user)
+		err = db.Save(ctx, &user)
 
 		if err != nil {
 			log.Fatal(err)

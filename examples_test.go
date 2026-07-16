@@ -2,6 +2,7 @@ package rainstorm_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -14,9 +15,45 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+func ExampleOpen() {
+	dir, err := os.MkdirTemp(os.TempDir(), "rainstorm")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			log.Println("remove temporary directory:", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	db, err := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Println("close error:", err)
+		}
+	}()
+
+	fmt.Println("opened successfully")
+
+	// Output:
+	// opened successfully
+}
+
 func ExampleDB_Save() {
-	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
-	defer os.RemoveAll(dir)
+	dir, err := os.MkdirTemp(os.TempDir(), "rainstorm")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			log.Println("remove temporary directory:", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -30,8 +67,15 @@ func ExampleDB_Save() {
 	}
 
 	// Open takes an optional list of options as the last argument.
-	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"), rainstorm.Codec(gob.Codec))
-	defer db.Close()
+	db, err := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"), rainstorm.Codec(gob.Codec))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Println("close error:", err)
+		}
+	}()
 
 	user := User{
 		Group:     "staff",
@@ -41,7 +85,7 @@ func ExampleDB_Save() {
 		CreatedAt: time.Now(),
 	}
 
-	err := db.Save(ctx, &user)
+	err = db.Save(ctx, &user)
 
 	if err != nil {
 		log.Fatal(err)
@@ -211,8 +255,15 @@ func ExampleSkip() {
 }
 
 func ExampleUseDB() {
-	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
-	defer os.RemoveAll(dir)
+	dir, err := os.MkdirTemp(os.TempDir(), "rainstorm")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			log.Println("remove temporary directory:", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -221,8 +272,21 @@ func ExampleUseDB() {
 		log.Fatal(err)
 	}
 
-	db, _ := rainstorm.Open(ctx, "", rainstorm.UseDB(bDB))
-	defer db.Close()
+	db, err := rainstorm.Open(ctx, "", rainstorm.UseDB(bDB))
+	if err != nil {
+		if closeErr := bDB.Close(); closeErr != nil {
+			log.Println("native close after open failure:", closeErr)
+		}
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Println("rainstorm close error:", err)
+		}
+		if err := bDB.Close(); err != nil {
+			log.Println("native close error:", err)
+		}
+	}()
 
 	err = db.Save(ctx, &User{ID: 10})
 	if err != nil {
@@ -320,6 +384,53 @@ func ExampleDB_WriteTransaction() {
 	// Output:
 	// Amount in account 1: 9000
 	// Amount in account 2: 11000
+}
+
+func ExampleDB_ReadTransaction() {
+	dir, db := prepareDB()
+	defer os.RemoveAll(dir)
+	defer db.Close()
+
+	ctx := context.Background()
+
+	var u User
+	// ReadTransaction executes the callback in a managed read-only transaction.
+	err := db.ReadTransaction(ctx, func(tx rainstorm.Node) error {
+		return tx.One(ctx, "ID", 1, &u)
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(u.Name)
+
+	// Output:
+	// John
+}
+
+func Example_errorsIs() {
+	dir, db := prepareDB()
+	defer os.RemoveAll(dir)
+	defer db.Close()
+
+	ctx := context.Background()
+
+	var user User
+	err := db.One(ctx, "Name", "Nobody", &user)
+	// Classify errors with errors.Is, never with direct equality.
+	if errors.Is(err, rainstorm.ErrNotFound) {
+		fmt.Println("not found")
+	}
+
+	err = db.One(ctx, "ID", 1, &user)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(user.ID, user.Name)
+
+	// Output:
+	// not found
+	// 1 John
 }
 
 func ExampleDB_From() {
@@ -551,9 +662,15 @@ type Note struct {
 }
 
 func prepareDB() (string, *rainstorm.DB) {
-	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
+	dir, err := os.MkdirTemp(os.TempDir(), "rainstorm")
+	if err != nil {
+		log.Fatal(err)
+	}
 	ctx := context.Background()
-	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
+	db, err := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	for i, name := range []string{"John", "Eric", "Dilbert"} {
 		email := strings.ToLower(name + "@provider.com")
@@ -564,7 +681,7 @@ func prepareDB() (string, *rainstorm.DB) {
 			Age:       21 + i,
 			CreatedAt: time.Now(),
 		}
-		err := db.Save(ctx, &user)
+		err = db.Save(ctx, &user)
 
 		if err != nil {
 			log.Fatal(err)
@@ -574,7 +691,7 @@ func prepareDB() (string, *rainstorm.DB) {
 	for i := int64(0); i < 10; i++ {
 		account := Account{Amount: 10000}
 
-		err := db.Save(ctx, &account)
+		err = db.Save(ctx, &account)
 
 		if err != nil {
 			log.Fatal(err)

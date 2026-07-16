@@ -1,3 +1,6 @@
+// Package rainstorm is a toolkit for BoltDB that provides indexes, a wide range
+// of methods to store and fetch data, an advanced query system, and managed
+// transactions with context support.
 package rainstorm
 
 import (

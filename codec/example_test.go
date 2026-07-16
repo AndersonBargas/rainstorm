@@ -3,8 +3,12 @@ package codec_test
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/AndersonBargas/rainstorm/v6"
+	"github.com/AndersonBargas/rainstorm/v6/codec"
 	"github.com/AndersonBargas/rainstorm/v6/codec/gob"
 	"github.com/AndersonBargas/rainstorm/v6/codec/json"
 	"github.com/AndersonBargas/rainstorm/v6/codec/msgpack"
@@ -14,19 +18,38 @@ import (
 
 func Example() {
 	ctx := context.Background()
-	// The examples below show how to set up all the codecs shipped with Rainstorm.
-	// Proper error handling left out to make it simple.
-	var gobDb, _ = rainstorm.Open(ctx, "gob.db", rainstorm.Codec(gob.Codec))
-	var jsonDb, _ = rainstorm.Open(ctx, "json.db", rainstorm.Codec(json.Codec))
-	var msgpackDb, _ = rainstorm.Open(ctx, "msgpack.db", rainstorm.Codec(msgpack.Codec))
-	var serealDb, _ = rainstorm.Open(ctx, "sereal.db", rainstorm.Codec(sereal.Codec))
-	var protobufDb, _ = rainstorm.Open(ctx, "protobuf.db", rainstorm.Codec(protobuf.Codec))
+	dir, err := os.MkdirTemp("", "rainstorm-codecs")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			log.Println("remove temporary directory:", err)
+		}
+	}()
 
-	fmt.Printf("%T\n", gobDb.Codec())
-	fmt.Printf("%T\n", jsonDb.Codec())
-	fmt.Printf("%T\n", msgpackDb.Codec())
-	fmt.Printf("%T\n", serealDb.Codec())
-	fmt.Printf("%T\n", protobufDb.Codec())
+	codecs := []struct {
+		name  string
+		codec codec.MarshalUnmarshaler
+	}{
+		{name: "gob", codec: gob.Codec},
+		{name: "json", codec: json.Codec},
+		{name: "msgpack", codec: msgpack.Codec},
+		{name: "sereal", codec: sereal.Codec},
+		{name: "protobuf", codec: protobuf.Codec},
+	}
+
+	for _, candidate := range codecs {
+		db, err := rainstorm.Open(ctx, filepath.Join(dir, candidate.name+".db"), rainstorm.Codec(candidate.codec))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		fmt.Printf("%T\n", db.Codec())
+		if err := db.Close(); err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	// Output:
 	// *gob.gobCodec

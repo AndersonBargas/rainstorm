@@ -15,7 +15,7 @@ type OpenOption func(*Options) error
 // FindOption customizes a finder query.
 type FindOption func(*index.Options)
 
-// BoltOptions used to pass options to BoltDB.
+// BoltOptions is used to pass custom file mode and options to the underlying BoltDB.
 func BoltOptions(mode os.FileMode, options *bolt.Options) OpenOption {
 	return func(opts *Options) error {
 		opts.boltMode = mode
