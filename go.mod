@@ -3,7 +3,7 @@ module github.com/AndersonBargas/rainstorm/v6
 require (
 	github.com/Sereal/Sereal v0.0.0-20200820125258-a016b7cda3f3
 	github.com/golang/protobuf v1.3.2
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	github.com/vmihailenco/msgpack v4.0.4+incompatible
 	go.etcd.io/bbolt v1.4.3
 )
