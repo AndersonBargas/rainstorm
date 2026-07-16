@@ -6,9 +6,11 @@
 Package protobuf is a generated protocol buffer package.
 
 It is generated from these files:
+
 	simple_user.proto
 
 It has these top-level messages:
+
 	SimpleUser
 */
 package protobuf

@@ -63,7 +63,11 @@
 - **No changes needed in R6.6A.**
 
 ### Nested module CI invocation
-- Belongs to R6.6B/C.
+- Implemented in R6.6B as a dedicated compatibility job.
+- Roundtrip: normal + race tests on stable Go.
+- Benchmark: compile/run normal + race (no full `-bench` suite).
+- v5 fixture generator not invoked in ordinary CI.
+- Nested module `go.mod`/`go.sum` remain independently maintained.
 
 ---
 
@@ -201,13 +205,24 @@ go mod tidy
 | Replacement/removal? | Should be considered only in a future major version |
 | R6.6A action | **No change.** Defer to R6.6A4. |
 
-### F. Go Version Policy
+### F. Go Version Policy (finalized in R6.6B)
 
 | Item | Value |
 |------|-------|
-| Current `go` directive | `go 1.24.0` |
+| Current `go` directive | `go 1.24.0` (not changed) |
+| Minimum supported Go | 1.24.x |
+| Current stable (dev/CI) | `setup-go` stable channel |
 | Locally installed Go | `go1.26.5` |
-| R6.6A action | **No change.** Policy finalized alongside CI in R6.6B. |
+| R6.6A action | Policy deferred to R6.6B |
+| R6.6B action | **Policy documented here.** |
+
+**Policy:**
+- The module declares `go 1.24.0` as its minimum language/toolchain requirement.
+- CI proves the module builds and tests on Go 1.24.x (minimum) and current stable Go.
+- Race detection, coverage, and compatibility suites run on stable only to control CI cost.
+- README will document supported Go versions in R6.7.
+- Dependency updates remain frozen for runtime codecs/storage in v6.
+- Nested modules are invoked explicitly in CI.
 
 ---
 
@@ -246,6 +261,128 @@ go mod tidy
 1. **R6.6A2:** Protobuf API migration feasibility and fixture proof
 2. **R6.6A3:** MsgPack major-version migration feasibility and fixture proof
 3. **R6.6A4:** Sereal/transitive dependency decision (update, replace, or defer)
-4. **R6.6B/C:** CI workflows, Go version policy finalization, nested module CI invocation
+4. **R6.6C:** Staticcheck integration and coverage threshold
+5. **R6.6D:** Dependency automation (Dependabot/Renovate)
 
 Codec migrations that cannot demonstrate wire/on-disk compatibility with checked-in v5 fixtures should be explicitly deferred to v7.
+
+---
+
+## 13. R6.6B -- CI Pipeline
+
+**Date:** 2026-07-15
+**Phase:** R6.6B -- CI workflow modernization
+
+### Workflow trigger configuration
+
+```yaml
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+```
+
+### Job inventory
+
+| Job | Go version | Timeout | Checks |
+|-----|-----------|---------|--------|
+| quality | 1.24.x | 10 min | gofmt, tidy diff, mod verify, vet, build |
+| test | 1.24.x + stable | 10 min | `go test -count=1 -timeout 180s ./...` |
+| race | stable | 15 min | `go test -race -count=1 -timeout 300s ./...` |
+| compatibility | stable | 15 min | roundtrip normal + race, benchmark normal + race |
+| coverage | stable | 10 min | profile, text summary, artifact upload |
+
+### Action versions
+
+| Action | Version | Source evidence |
+|--------|---------|----------------|
+| `actions/checkout` | v7 | Latest stable release from GitHub Releases API: v7.0.0 (2026-06-18). |
+| `actions/setup-go` | v6 | Latest stable major from GitHub Releases API: v6.5.0 (2026-06-24). |
+| `actions/upload-artifact` | v7 | Latest stable release from GitHub Releases API: v7.0.1 (2026-04-10). |
+
+All versions confirmed via GitHub Releases API on 2026-07-15.
+
+### Cache configuration
+
+Main module jobs use `cache-dependency-path: go.sum`.
+
+The compatibility job uses:
+
+```yaml
+cache-dependency-path: |
+  go.sum
+  testdata/compatibility/roundtrip/go.sum
+  testdata/compatibility/benchmark/go.sum
+```
+
+### Excluded from R6.6B
+
+- v5 fixture generator (not invoked in ordinary CI)
+- Full benchmark suite (only compile/test; no `-bench`)
+- Staticcheck (R6.6C)
+- Dependabot/Renovate (R6.6D)
+- `paths-ignore` (removed; all changes trigger CI)
+
+### Coverage behavior
+
+- Profile: `go test -covermode=atomic -coverprofile=coverage.out`
+- Summary: `go tool cover -func=coverage.out` piped to `coverage.txt`
+- Artifact: `coverage-stable` containing `coverage.out` + `coverage.txt`
+- Retention: 14 days
+- No minimum coverage threshold enforced (R6.6C)
+
+### R6.6B local validation (2026-07-15)
+
+| Check | Result |
+|-------|--------|
+| `gofmt -l .` | Pass after formatting the pre-existing generated protobuf file |
+| `go mod tidy` + `git diff --exit-code` | Pass |
+| `go mod verify` | Pass |
+| `go vet ./...` | Pass |
+| `go test -count=1 -timeout 180s ./...` | Pass (11 packages) |
+| `go test -race -count=1 -timeout 300s ./...` | Pass (11 packages) |
+| `go build ./...` | Pass |
+| Coverage profile + summary | Total: 80.1% |
+| Roundtrip normal | Pass |
+| Roundtrip race | Pass |
+| Benchmark normal | Pass (no tests to run) |
+| Benchmark race | Pass (no tests to run) |
+| Workflow syntax | `actionlint` unavailable; parsed successfully with local Ruby/Psych YAML parser and manually reviewed |
+
+### Workflow audit checklist
+
+| Requirement | Status |
+|-------------|--------|
+| No `paths-ignore` | Yes |
+| Includes `pull_request` | Yes |
+| Includes `push` | Yes |
+| Includes `workflow_dispatch` | Yes |
+| `permissions: contents: read` | Yes |
+| Concurrency configured | Yes |
+| Formatting present | Yes |
+| Tidy diff check present | Yes |
+| Mod verify present | Yes |
+| Vet present | Yes |
+| Normal tests on 1.24.x and stable | Yes |
+| Race present | Yes |
+| Build present | Yes |
+| Compatibility nested modules present | Yes |
+| Coverage profile and text summary present | Yes |
+| Artifact upload present | Yes |
+| No staticcheck yet | Yes |
+| No dependency automation yet | Yes |
+| No fixture regeneration | Yes |
+| No full benchmarks | Yes |
+
+### R6.6B files changed
+
+- `.github/workflows/main.yml` -- replaced with new CI pipeline
+- `docs/dependency-audit.md` -- added Go version policy and R6.6B CI section
+- `codec/protobuf/simple_user.pb.go` -- gofmt-only generated-file cleanup required by the formatting job

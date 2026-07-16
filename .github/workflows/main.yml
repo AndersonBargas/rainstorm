@@ -1,32 +1,123 @@
-name: GoLang
+name: CI
 on:
   push:
-    paths-ignore:
-      - '*.md*'
-      - 'LICENSE'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
 
-  build:
-    name: Build
+  # -- quality (Go 1.24.x minimum): formatting, tidy, verify, vet, build ----------
+  quality:
+    name: Quality (1.24.x)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.x'
+          cache-dependency-path: go.sum
+      - name: Formatting check
+        run: |
+          fmt_files=$(gofmt -l .)
+          if [ -n "$fmt_files" ]; then
+            printf 'Unformatted files:\n%s\n' "$fmt_files"
+            exit 1
+          fi
+      - name: Module tidy check
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+      - name: Module verify
+        run: go mod verify
+      - name: Vet
+        run: go vet ./...
+      - name: Build
+        run: go build ./...
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24'
-      id: go
+  # -- test (matrix: 1.24.x minimum + stable current) ---------------------------
+  test:
+    name: Test (${{ matrix.go }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ['1.24.x', 'stable']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: go.sum
+      - name: Test
+        run: go test -count=1 -timeout 180s ./...
 
-    - name: Check out code into the Go module directory
-      uses: actions/checkout@v4
+  # -- race (stable only) -------------------------------------------------------
+  race:
+    name: Race (stable)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+      - name: Race detector
+        run: go test -race -count=1 -timeout 300s ./...
 
-    - name: Code coverage report
-      run: |
-        go test ./... -coverprofile=coverage.out
-        go tool cover -html=coverage.out -o coverage.html
-    
-    - name: Code coverage artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: Code coverage report
-        path: ./coverage.html
+  # -- compatibility (stable): nested roundtrip + benchmark ---------------------
+  compatibility:
+    name: Compatibility (stable)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: |
+            go.sum
+            testdata/compatibility/roundtrip/go.sum
+            testdata/compatibility/benchmark/go.sum
+      - name: Roundtrip normal
+        run: go -C testdata/compatibility/roundtrip test -count=1 -timeout 180s ./...
+      - name: Roundtrip race
+        run: go -C testdata/compatibility/roundtrip test -race -count=1 -timeout 300s ./...
+      - name: Benchmark normal
+        run: go -C testdata/compatibility/benchmark test -count=1 ./...
+      - name: Benchmark race
+        run: go -C testdata/compatibility/benchmark test -race -count=1 ./...
+
+  # -- coverage (stable): profile + text summary + artifact upload ---------------
+  coverage:
+    name: Coverage (stable)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+      - name: Coverage profile
+        run: |
+          go test -count=1 -timeout 180s -covermode=atomic -coverprofile=coverage.out ./...
+      - name: Coverage summary
+        run: |
+          go tool cover -func=coverage.out | tee coverage.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-stable
+          path: |
+            coverage.out
+            coverage.txt
+          retention-days: 14
