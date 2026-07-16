@@ -646,6 +646,8 @@ See [`testdata/compatibility/README.md`](testdata/compatibility/README.md) for t
 
 See [`MIGRATION_V6.md`](MIGRATION_V6.md) for the complete v5.3.0 → v6 migration guide.
 
+See [`docs/release-notes-v6.md`](docs/release-notes-v6.md) for the v6 release summary.
+
 ## Performance
 
 Rainstorm v6 adds context propagation, operation wrapping, managed transactions, and destination safety on top of v5's foundation. Measured paired workloads under equivalent configurations (Apple M4, darwin/arm64, default JSON codec, `NoSync`) show:

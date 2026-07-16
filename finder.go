@@ -11,7 +11,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// A Finder can fetch types from BoltDB.
+// Finder retrieves records from Rainstorm buckets.
 type Finder interface {
 	// One returns one record by the specified index
 	One(ctx context.Context, fieldName string, value any, to any) error

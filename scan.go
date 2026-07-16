@@ -7,7 +7,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// A BucketScanner scans a Node for a list of buckets
+// BucketScanner discovers child bucket nodes by prefix or range.
 type BucketScanner interface {
 	// PrefixScan scans the root buckets for keys matching the given prefix.
 	PrefixScan(ctx context.Context, prefix string) ([]Node, error)

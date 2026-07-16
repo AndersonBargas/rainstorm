@@ -8,13 +8,13 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// Select a list of records that match a list of matchers. Doesn't use indexes.
+// Select builds a query that scans for records matching all supplied matchers.
 func (n *node) Select(matchers ...q.Matcher) Query {
 	tree := q.And(matchers...)
 	return newQuery(n, tree)
 }
 
-// Query is the low level query engine used by Rainstorm. It allows to operate searches through an entire bucket.
+// Query configures and executes scans over records in a bucket.
 type Query interface {
 	// Skip matching records by the given number
 	Skip(int) Query
@@ -43,15 +43,15 @@ type Query interface {
 	// Count all the matching records
 	Count(ctx context.Context, kind any) (int, error)
 
-	// Returns all the records without decoding them
+	// Raw returns all matching records without decoding them.
 	Raw(ctx context.Context) ([][]byte, error)
 
-	// Execute the given function for each raw element.
+	// RawEach executes fn for each matching raw key/value pair.
 	// If the callback returns an error, processing stops and that error is returned.
 	// Cancellation prevents further callbacks but does not undo callbacks already executed.
 	RawEach(ctx context.Context, fn func(key, value []byte) error) error
 
-	// Execute the given function for each element.
+	// Each decodes each matching record and executes fn.
 	// If the callback returns an error, processing stops and that error is returned.
 	// Cancellation prevents further callbacks but does not undo callbacks already executed.
 	Each(ctx context.Context, kind any, fn func(any) error) error

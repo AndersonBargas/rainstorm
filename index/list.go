@@ -39,9 +39,12 @@ func NewListIndex(parent *bolt.Bucket, indexName []byte) (*ListIndex, error) {
 
 // ListIndex is an index that references values and the corresponding IDs.
 type ListIndex struct {
-	Parent      *bolt.Bucket
+	// Parent contains the record bucket and its index buckets.
+	Parent *bolt.Bucket
+	// IndexBucket stores value-to-ID list entries.
 	IndexBucket *bolt.Bucket
-	IDs         *UniqueIndex
+	// IDs tracks indexed IDs for cleanup and full-record traversal.
+	IDs *UniqueIndex
 }
 
 // Add a value to the list index

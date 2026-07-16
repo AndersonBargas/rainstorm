@@ -1,4 +1,4 @@
-// Package protobuf contains a codec to encode and decode entities in Protocol Buffer
+// Package protobuf provides a codec for Protocol Buffers messages.
 package protobuf
 
 import (

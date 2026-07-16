@@ -8,7 +8,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// NewIDIndex loads a IDIndex
+// NewIDIndex returns an ID index backed by parent.
 func NewIDIndex(parent *bolt.Bucket, indexName []byte) (*IDIndex, error) {
 	if parent == nil {
 		return nil, wrapError("index new id", ErrNilParam)
@@ -20,10 +20,11 @@ func NewIDIndex(parent *bolt.Bucket, indexName []byte) (*IDIndex, error) {
 
 // IDIndex is an index that references unique values and the corresponding ID.
 type IDIndex struct {
+	// IndexBucket stores the encoded primary-key entries.
 	IndexBucket *bolt.Bucket
 }
 
-// Add a value to the unique index
+// Add validates a primary-key index entry; the primary record bucket stores the mapping.
 func (idx *IDIndex) Add(ctx context.Context, value []byte, targetID []byte) error {
 	if err := checkContext(ctx); err != nil {
 		return wrapError("index add", err)
@@ -38,7 +39,7 @@ func (idx *IDIndex) Add(ctx context.Context, value []byte, targetID []byte) erro
 	return nil
 }
 
-// Remove a value from the unique index
+// Remove validates context for an ID-index removal; primary records are removed by the store.
 func (idx *IDIndex) Remove(ctx context.Context, value []byte) error {
 	if err := checkContext(ctx); err != nil {
 		return wrapError("index remove", err)
@@ -54,7 +55,7 @@ func (idx *IDIndex) RemoveID(ctx context.Context, id []byte) error {
 	return nil
 }
 
-// Get the id corresponding to the given value
+// Get returns the ID corresponding to value.
 func (idx *IDIndex) Get(ctx context.Context, value []byte) ([]byte, error) {
 	if err := checkContext(ctx); err != nil {
 		return nil, wrapError("index get", err)

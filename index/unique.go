@@ -33,7 +33,9 @@ func NewUniqueIndex(parent *bolt.Bucket, indexName []byte) (*UniqueIndex, error)
 
 // UniqueIndex is an index that references unique values and the corresponding ID.
 type UniqueIndex struct {
-	Parent      *bolt.Bucket
+	// Parent contains the record bucket and its index buckets.
+	Parent *bolt.Bucket
+	// IndexBucket stores one encoded ID per unique value.
 	IndexBucket *bolt.Bucket
 }
 

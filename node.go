@@ -7,7 +7,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// A Node in Rainstorm represents the API to a BoltDB bucket.
+// Node exposes Rainstorm operations relative to a bbolt bucket path.
 type Node interface {
 	TypeStore
 	KeyValueStore
@@ -21,17 +21,17 @@ type Node interface {
 	// In the normal, simple case this will be empty.
 	Bucket() []string
 
-	// Codec used by this instance of Rainstorm
+	// Codec returns the codec selected for this node.
 	Codec() codec.MarshalUnmarshaler
 
-	// WithCodec returns a New Rainstorm Node that will use the given Codec.
+	// WithCodec returns a copy of the node configured to use the given codec.
 	WithCodec(codec codec.MarshalUnmarshaler) Node
 }
 
 // Compile-time assertion that *node implements the final Node interface.
 var _ Node = (*node)(nil)
 
-// A Node in Rainstorm represents the API to a BoltDB bucket.
+// node implements Node for a specific bucket path and optional transaction.
 type node struct {
 	s *DB
 
