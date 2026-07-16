@@ -620,7 +620,7 @@ type MarshalUnmarshaler interface {
 
 ### Codec compatibility
 
-The database metadata records the codec used to initialize the database. Opening it with an incompatible codec returns an error matching `ErrDifferentCodec`.
+Rainstorm records codec metadata for record/KV leaf buckets and an encoded database-version value used during `Open`. An incompatible root codec is classified with `ErrDifferentCodec`; metadata-validating initialization and write operations also classify a mismatched node codec this way. Read paths may instead return the underlying decode error, so nodes configured with `WithCodec` must continue using their matching codec.
 
 ## Compatibility with v5
 
@@ -644,7 +644,7 @@ IDs, ordinary indexes, unique indexes, nested buckets, KV operations, `BucketNam
 
 See [`testdata/compatibility/README.md`](testdata/compatibility/README.md) for the full matrix.
 
-A dedicated migration guide will be published in a future update.
+See [`MIGRATION_V6.md`](MIGRATION_V6.md) for the complete v5.3.0 → v6 migration guide.
 
 ## Performance
 
