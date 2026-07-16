@@ -31,15 +31,15 @@ selected dependency graph. This is not process / toolchain isolation.
 ```sh
 # v5 collection
 go -C testdata/compatibility/benchmark test -run '^$' -bench '^BenchmarkV5/' \
-  -benchmem -benchtime=500ms -count=5 -timeout 600s > results/v5.txt
+  -benchmem -benchtime=500ms -count=5 -timeout 600s > testdata/compatibility/benchmark/results/v5.txt
 
 # v6 collection
 go -C testdata/compatibility/benchmark test -run '^$' -bench '^BenchmarkV6/' \
-  -benchmem -benchtime=500ms -count=5 -timeout 600s > results/v6.txt
+  -benchmem -benchtime=500ms -count=5 -timeout 600s > testdata/compatibility/benchmark/results/v6.txt
 
 # v6-only collection
 go -C testdata/compatibility/benchmark test -run '^$' -bench '^BenchmarkV6_' \
-  -benchmem -benchtime=500ms -count=5 -timeout 300s > results/v6_only.txt
+  -benchmem -benchtime=500ms -count=5 -timeout 300s > testdata/compatibility/benchmark/results/v6_only.txt
 ```
 
 ## 4. Workload Definitions
