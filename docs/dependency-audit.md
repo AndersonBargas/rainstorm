@@ -605,3 +605,255 @@ cache-dependency-path: |
 - **No dependency automation added** (R6.6D).
 - **No commit or push performed.**
 - **Working tree left uncommitted for review.**
+
+---
+
+## 15. R6.6D -- Dependency Automation and Final CI Audit
+
+**Date:** 2026-07-15
+**Phase:** R6.6D -- Dependabot configuration and final CI pipeline audit
+
+### Dependabot configuration
+
+**File:** `.github/dependabot.yml`
+**Schema version:** 2
+
+#### Ecosystems
+
+| Ecosystem | Directory | Schedule | Open PR Limit | Grouping |
+|-----------|-----------|----------|---------------|----------|
+| `gomod` | `/` (root only) | monthly | 5 | all grouped (`go-deps`) |
+| `github-actions` | `/` | monthly | 5 | all grouped (`github-actions`) |
+
+**Timezone:** `Etc/UTC`
+
+#### Schedule and limits
+
+- **Interval:** monthly — conservative cadence appropriate for a mature v6 maintenance line.
+- **Timezone:** `Etc/UTC` — unambiguous, CI-friendly.
+- **Open pull request limit:** 5 per ecosystem — prevents PR noise while allowing critical fixes through.
+- **Grouping:** All updates within each ecosystem are grouped into a single PR per cycle. This minimizes reviewer burden and CI runner consumption for a repository with few direct dependencies.
+
+#### Grouping policy
+
+- **`go-deps` group:** all gomod updates (excluding frozen dependencies) land in one PR.
+- **`github-actions` group:** all GitHub Actions updates land in one PR.
+- Grouping is safe because the repository has a small, tightly-controlled dependency graph. If the graph grows or a specific dependency requires independent review, grouping can be split.
+
+#### Frozen root dependencies and rationale
+
+Dependabot is configured to **ignore** the following direct dependencies in the root module.
+These dependencies control storage format and codec wire compatibility; automated upgrades
+could silently break on-disk fixture compatibility without dedicated migration subphases.
+
+| Dependency | Rationale | Revisit |
+|-----------|-----------|---------|
+| `github.com/Sereal/Sereal` | Wire/on-disk codec; migration requires cross-version fixture proof | v7 |
+| `github.com/golang/protobuf` | Legacy protobuf API; migration to `google.golang.org/protobuf` requires generated-code and fixture evaluation | v7 |
+| `github.com/vmihailenco/msgpack` | Wire/on-disk codec; v4→v5 major-version migration requires fixture-proof validation | v7 |
+| `go.etcd.io/bbolt` | Storage engine; upgrades must be evaluated for on-disk format, performance regression, and fixture compatibility | v7 |
+| Sereal transitives | `DataDog/zstd`, `golang/snappy`, and `google/go-cmp` remain aligned with the frozen codec graph | v7 |
+| MsgPack transitives | `x/net`, App Engine, `check.v1`, and `kr/pretty` remain aligned with the frozen codec graph | v7 |
+
+**Policy:** Each frozen dependency must be manually migrated with a dedicated subphase that includes:
+1. Cross-version fixture compatibility proof.
+2. Full CI validation (normal + race + roundtrip).
+3. Benchmark comparison against checked-in baselines.
+
+This freeze does **not** block updates to `github.com/stretchr/testify`, its test-support graph, `golang.org/x/sys`, or other indirect dependencies unrelated to the legacy codec graphs.
+
+The following codec transitives are also frozen because `go mod why -m` traces them through Sereal or MsgPack: `github.com/DataDog/zstd`, `github.com/golang/snappy`, `github.com/google/go-cmp`, `golang.org/x/net`, `google.golang.org/appengine`, `gopkg.in/check.v1`, and `github.com/kr/pretty`.
+
+#### Nested-module exclusion policy
+
+Dependabot is **not** enabled for the following nested modules:
+
+| Module | Path | Rationale |
+|--------|------|-----------|
+| v5 fixture generator | `testdata/compatibility/v5.3.0/generator` | Pinned to v5.3.0 provenance; updates would alter fixture generation behavior |
+| Roundtrip | `testdata/compatibility/roundtrip` | Deliberately controlled dependency graph; v5+v6 cross-major testing |
+| Benchmark | `testdata/compatibility/benchmark` | Deliberately controlled dependency graph; benchmark reproducibility |
+
+These modules serve as compatibility and performance evidence. Automated dependency
+changes would undermine fixture provenance and benchmark comparability. CI continues
+to `tidy`, `verify`, and test all nested modules, catching any drift introduced by
+Go toolchain or indirect dependency resolution.
+
+#### GitHub Actions update policy
+
+- **Ecosystem:** `github-actions`
+- **Scope:** `/` (all workflow files)
+- **Schedule:** monthly (same as gomod)
+- **Grouping:** all action updates in one PR
+- **No third-party actions are introduced.** Only existing official GitHub actions (`actions/checkout`, `actions/setup-go`, `actions/upload-artifact`) are monitored.
+- **Action majors are preserved:** explicit `semver-major` ignore rules keep checkout on v7, setup-go on v6, and upload-artifact on v7 during the v6 maintenance line. Dependabot may still propose eligible updates within those major lines.
+
+#### Security-update behavior
+
+Dependabot alerts and security-update PRs are distinct repository features. This file enables scheduled version updates; it does not itself prove that Dependabot security updates are enabled in repository settings. Security PRs, when enabled, are not governed by the monthly version-update schedule and use a separate PR limit.
+
+The `ignore` rules can affect which automated update PRs Dependabot creates. Therefore, vulnerabilities involving a frozen codec/storage dependency, a frozen codec transitive, or a pinned Action major require explicit maintainer review: assess the alert, temporarily narrow the relevant ignore rule when a safe patch is available, and run the compatibility evidence before merging. The configuration makes no claim that every security PR bypasses the v6 freeze.
+
+### Final CI workflow inventory
+
+**File:** `.github/workflows/main.yml`
+
+| # | Job | Runner | Go Version | Timeout | Key Behaviors |
+|---|-----|--------|------------|---------|---------------|
+| 1 | `quality` | ubuntu-latest | 1.24.x | 10m | gofmt, tidy+diff, verify, vet, build |
+| 2 | `staticcheck` | ubuntu-latest | stable | 10m | Installs `staticcheck@2026.1`, runs `./...` |
+| 3 | `test` | ubuntu-latest | 1.24.x, stable | 10m | Matrix: normal tests, fail-fast false |
+| 4 | `race` | ubuntu-latest | stable | 15m | Race detector on all packages |
+| 5 | `compatibility` | ubuntu-latest | stable | 15m | Nested tidy+verify+diff, roundtrip normal/race, benchmark normal/race compile |
+| 6 | `coverage` | ubuntu-latest | stable | 10m | Atomic coverage profile, text summary, awk threshold, artifact upload |
+
+**Workflow properties:**
+
+- **Triggers:** `push`, `pull_request`, `workflow_dispatch`
+- **No `paths-ignore`:** full validation on every event
+- **Permissions:** `contents: read`
+- **Concurrency:** group by workflow+ref, cancel-in-progress enabled
+- **Actions:** `actions/checkout@v7`, `actions/setup-go@v6`, `actions/upload-artifact@v7`
+- **No `@latest`, no `|| true`, no fixture regeneration, no full benchmark execution**
+- **No secrets, no write permissions, no third-party actions**
+
+### Staticcheck audit
+
+**Pinned version:** `2026.1` (installed via `go install honnef.co/go/tools/cmd/staticcheck@2026.1`)
+
+**Local run result:**
+```
+go run honnef.co/go/tools/cmd/staticcheck@2026.1 ./...
+```
+- **Exit code:** 0
+- **Diagnostics:** none
+- **No categories globally disabled**
+
+CI `staticcheck` job mirrors this exactly: `go install` at the pinned version, then `staticcheck ./...`.
+
+### Coverage parser audit
+
+**Parser:** exact `awk` script from `.github/workflows/main.yml` lines 157-179.
+
+**Parser logic:**
+1. Scans for lines matching `^total:`.
+2. Extracts last whitespace-delimited field, strips trailing `%`.
+3. Validates numeric format (integer or decimal).
+4. Compares numeric value against threshold 80.0.
+5. Requires exactly one total line in `END` block.
+6. Uses no `bc` or external packages.
+
+**Positive cases:**
+
+| Input | Expected | Result |
+|-------|----------|--------|
+| 80.1% | PASS | PASS — "Coverage threshold satisfied: 80.1% >= 80.0%" |
+| 80.0% | PASS | PASS — "Coverage threshold satisfied: 80.0% >= 80.0%" |
+
+**Negative cases:**
+
+| Input | Expected | Result |
+|-------|----------|--------|
+| 79.9% | FAIL | FAIL — "FAIL: coverage 79.9% is below minimum 80.0%" |
+| `abc%` (malformed) | FAIL | FAIL — "ERROR: malformed coverage total: abc%" |
+| No `total:` line | FAIL | FAIL — "ERROR: expected exactly one total line" |
+| Duplicate `total:` lines | FAIL | FAIL — "ERROR: expected exactly one total line" |
+
+### Observed coverage
+
+**Total:** 80.4% (statements)
+- Above the 80.0% threshold.
+- Generated via `go test -count=1 -timeout 180s -covermode=atomic -coverprofile=coverage.out ./...` followed by `go tool cover -func=coverage.out`.
+
+### Coverage artifact behavior
+
+The `actions/upload-artifact@v7` step runs **only after the threshold check succeeds**.
+If the awk parser exits non-zero (threshold failure, malformed input, missing total,
+or duplicate totals), the job fails at the threshold step and the artifact upload
+step does not execute. Coverage artifacts are therefore **only preserved when the
+threshold is met.**
+
+This is the current intended behavior — the artifact is a build attestation, not a
+debugging aid. No `if: always()` is added.
+
+### Nested-module audit
+
+**CI `compatibility` job exercises:**
+
+| Step | Command | Status |
+|------|---------|--------|
+| Nested tidy | `go -C ... mod tidy` (generator, roundtrip, benchmark) | PASS |
+| Nested verify | `go -C ... mod verify` (all three) | PASS |
+| Nested diff check | `git diff --exit-code` on all nested go.mod/go.sum | CLEAN |
+| Roundtrip normal | `go -C roundtrip test -count=1 -timeout 180s ./...` | PASS |
+| Roundtrip race | `go -C roundtrip test -race -count=1 -timeout 300s ./...` | PASS |
+| Benchmark normal | `go -C benchmark test -count=1 ./...` | PASS (0 tests, compile-only) |
+| Benchmark race | `go -C benchmark test -race -count=1 ./...` | PASS (0 tests, compile-only) |
+
+**Verified properties:**
+- The v5.3.0 generator module is tidied/verified but **not executed** in CI.
+- Compatibility fixtures are **not modified** by any CI step.
+- Roundtrip normal and race tests pass.
+- Benchmark module normal/race compile tests pass (no `-bench` workload executed).
+- No nested `go.mod` or `go.sum` files changed after tidy.
+
+### Workflow/YAML validation
+
+- **YAML syntax:** Validated with Ruby `Psych` (stdlib YAML parser) — PASS.
+- **GitHub Actions semantics:** `actionlint` is not installed in the local environment.
+  Manual review of GitHub Actions expressions and job structure confirms no issues.
+  This is a known limitation; full semantic validation requires `actionlint`.
+
+### CI defects found and fixes
+
+**No CI defects were found.** The workflow at HEAD (`8fd5344`) is correct and complete.
+No changes were made to `.github/workflows/main.yml`.
+
+### R6.6D files changed
+
+- `.github/dependabot.yml` — new file (Dependabot configuration, schema version 2)
+- `docs/dependency-audit.md` — added R6.6D section (this section)
+
+### R6.6D validation evidence
+
+| Command | Result |
+|---------|--------|
+| `git diff --check` | PASS |
+| `test -z "$(gofmt -l .)"` | PASS |
+| `go mod tidy` | PASS (no changes) |
+| `git diff --exit-code -- go.mod go.sum` | PASS (clean) |
+| `go mod verify` | PASS |
+| `go vet ./...` | PASS |
+| `go build ./...` | PASS |
+| `go test -count=1 -timeout 180s ./...` | PASS (all packages) |
+| `go test -race -count=1 -timeout 300s ./...` | PASS (all packages) |
+| `go run honnef.co/go/tools/cmd/staticcheck@2026.1 ./...` | PASS (zero diagnostics) |
+| `go test -covermode=atomic -coverprofile=coverage.out ./...` | PASS |
+| `go tool cover -func=coverage.out > coverage.txt` | Total: 80.4% |
+| Coverage parser (real) | PASS (80.4% >= 80.0%) |
+| Coverage parser (80.1) | PASS |
+| Coverage parser (80.0) | PASS |
+| Coverage parser (79.9) | FAIL (expected) |
+| Coverage parser (malformed) | FAIL (expected) |
+| Coverage parser (missing total) | FAIL (expected) |
+| Coverage parser (duplicate totals) | FAIL (expected) |
+| Generator `mod tidy` + `mod verify` | PASS |
+| Roundtrip `mod tidy` + `mod verify` | PASS |
+| Benchmark `mod tidy` + `mod verify` | PASS |
+| Nested diff check (post-tidy) | CLEAN (no changes) |
+| Roundtrip normal test | PASS |
+| Roundtrip race test | PASS |
+| Benchmark normal test | PASS (compile-only) |
+| Benchmark race test | PASS (compile-only) |
+| `dependabot.yml` YAML (Ruby/Psych) | VALID |
+| `main.yml` YAML (Ruby/Psych) | VALID |
+| `actionlint` | Unavailable (manual review, no issues) |
+
+### Confirmation
+
+- **No production, test, generated, fixture, go.mod, or go.sum files changed.**
+- **No dependency version changed.**
+- **No `go.mod` or `go.sum` files modified** (root or nested).
+- **No codec, storage, or compatibility behavior altered.**
+- **No commit or push performed.**
+- **Working tree contains only the two intentional changes:** `.github/dependabot.yml` (new) and `docs/dependency-audit.md` (updated).

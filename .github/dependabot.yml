@@ -1,0 +1,59 @@
+version: 2
+updates:
+  # Go module — root module only; nested compatibility modules are excluded
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    groups:
+      go-deps:
+        patterns:
+          - "*"
+    ignore:
+      # -- v6 frozen storage/codec dependencies (revisit for v7) --
+      # github.com/Sereal/Sereal: wire/on-disk codec; migration requires
+      #   cross-version fixture proof and dedicated subphase.
+      - dependency-name: "github.com/Sereal/Sereal"
+      # github.com/golang/protobuf: legacy protobuf API; migration to
+      #   google.golang.org/protobuf requires generated-code and fixture
+      #   compatibility evaluation.
+      - dependency-name: "github.com/golang/protobuf"
+      # github.com/vmihailenco/msgpack: wire/on-disk codec; major-version
+      #   migration (v4→v5) requires fixture-proof validation.
+      - dependency-name: "github.com/vmihailenco/msgpack"
+      # go.etcd.io/bbolt: storage engine; upgrades must be evaluated for
+      #   on-disk format, performance regression, and fixture compatibility.
+      - dependency-name: "go.etcd.io/bbolt"
+      # Transitive dependencies of the frozen Sereal and MsgPack codecs.
+      - dependency-name: "github.com/DataDog/zstd"
+      - dependency-name: "github.com/golang/snappy"
+      - dependency-name: "github.com/google/go-cmp"
+      - dependency-name: "golang.org/x/net"
+      - dependency-name: "google.golang.org/appengine"
+      - dependency-name: "gopkg.in/check.v1"
+      - dependency-name: "github.com/kr/pretty"
+
+  # GitHub Actions — monitor official action updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    ignore:
+      # Keep action major upgrades explicit during the v6 maintenance line.
+      - dependency-name: "actions/checkout"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "actions/setup-go"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "actions/upload-artifact"
+        update-types:
+          - "version-update:semver-major"
