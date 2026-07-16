@@ -178,7 +178,7 @@ go mod tidy
 |----------|--------|
 | Is the module deprecated? | Yes — marked deprecated; recommends `google.golang.org/protobuf` |
 | Does Rainstorm use the old API? | Yes — `codec/protobuf/protobuf.go` imports `github.com/golang/protobuf/proto` |
-| Would migration require source changes? | Yes — API differs; `codec/protobuf/simple_user.pb.go` is generated with old API |
+| Would migration require source changes? | Yes — API differs; the test-only `codec/protobuf/simple_user_test.go` fixture is generated with the old API |
 | Would migration require wire verification? | Yes — protobuf wire compatibility must be confirmed |
 | R6.6A action | **No change.** Needs dedicated subphase. |
 
@@ -385,7 +385,7 @@ cache-dependency-path: |
 
 - `.github/workflows/main.yml` -- replaced with new CI pipeline
 - `docs/dependency-audit.md` -- added Go version policy and R6.6B CI section
-- `codec/protobuf/simple_user.pb.go` -- gofmt-only generated-file cleanup required by the formatting job
+- `codec/protobuf/simple_user.pb.go` -- gofmt-only generated-file cleanup required by the formatting job (later moved unchanged to test-only `simple_user_test.go` during the v6 public API audit)
 
 ---
 
