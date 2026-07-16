@@ -1,0 +1,40 @@
+go version: go1.26.5 darwin/arm64
+GOOS: darwin
+GOARCH: arm64
+CPU: Apple M4
+bbolt: go.etcd.io/bbolt v1.4.3
+benchstat: not installed (manual median computation)
+v5 version: v5.3.0
+v6 version: local (HEAD 4860c35)
+benchtime: 500ms
+count: 5 samples per benchmark
+bbolt options: NoSync (temp dirs)
+codec: default JSON
+go version go1.26.5 darwin/arm64
+darwin
+arm64
+---
+github.com/AndersonBargas/rainstorm/testdata/compatibility/benchmark
+github.com/AndersonBargas/rainstorm/v5 v5.3.0
+github.com/AndersonBargas/rainstorm/v6 v6.0.0-00010101000000-000000000000 => ../../..
+github.com/DataDog/zstd v1.4.1
+github.com/Sereal/Sereal v0.0.0-20200820125258-a016b7cda3f3
+github.com/davecgh/go-spew v1.1.1
+github.com/golang/protobuf v1.3.2
+github.com/golang/snappy v0.0.1
+github.com/google/go-cmp v0.6.0
+github.com/inconshreveable/mousetrap v1.1.0
+github.com/kr/pretty v0.1.0
+github.com/pmezard/go-difflib v1.0.0
+github.com/spf13/cobra v1.8.1
+github.com/spf13/pflag v1.0.6
+github.com/stretchr/testify v1.10.0
+github.com/vmihailenco/msgpack v4.0.4+incompatible
+go.etcd.io/bbolt v1.4.3
+go.etcd.io/gofail v0.2.0
+golang.org/x/net v0.0.0-20191105084925-a882066a44e0
+golang.org/x/sync v0.10.0
+golang.org/x/sys v0.39.0
+google.golang.org/appengine v1.6.5
+gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15
+gopkg.in/yaml.v3 v3.0.1

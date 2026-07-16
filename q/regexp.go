@@ -46,6 +46,6 @@ func (r *regexpMatcher) MatchField(v interface{}) (bool, error) {
 	case []byte:
 		return r.r.Match(fieldValue), nil
 	default:
-		return false, fmt.Errorf("Only string and []byte supported for regexp matcher, got %T", fieldValue)
+		return false, fmt.Errorf("only string and []byte supported for regexp matcher, got %T", fieldValue)
 	}
 }

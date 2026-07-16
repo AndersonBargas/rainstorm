@@ -1,6 +1,11 @@
 package rainstorm
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/AndersonBargas/rainstorm/v6/index"
+)
 
 // Errors
 var (
@@ -13,11 +18,14 @@ var (
 	// ErrBadType is returned when a method receives an unexpected value type.
 	ErrBadType = errors.New("provided data must be a struct or a pointer to struct")
 
-	// ErrAlreadyExists is returned uses when trying to set an existing value on a field that has a unique index.
-	ErrAlreadyExists = errors.New("already exists")
+	// ErrAlreadyExists is returned when trying to set an existing value on a field that has a unique index.
+	ErrAlreadyExists = index.ErrAlreadyExists
 
 	// ErrNilParam is returned when the specified param is expected to be not nil.
-	ErrNilParam = errors.New("param must not be nil")
+	ErrNilParam = index.ErrNilParam
+
+	// ErrNilContext is returned when a nil context.Context is passed to an operation that requires a context.
+	ErrNilContext = index.ErrNilContext
 
 	// ErrUnknownTag is returned when an unexpected tag is specified.
 	ErrUnknownTag = errors.New("unknown tag")
@@ -38,10 +46,7 @@ var (
 	ErrNoName = errors.New("provided target must have a name")
 
 	// ErrNotFound is returned when the specified record is not saved in the bucket.
-	ErrNotFound = errors.New("not found")
-
-	// ErrNotInTransaction is returned when trying to rollback or commit when not in transaction.
-	ErrNotInTransaction = errors.New("not in transaction")
+	ErrNotFound = index.ErrNotFound
 
 	// ErrIncompatibleValue is returned when trying to set a value with a different type than the chosen field
 	ErrIncompatibleValue = errors.New("incompatible value")
@@ -49,3 +54,12 @@ var (
 	// ErrDifferentCodec is returned when using a codec different than the first codec used with the bucket.
 	ErrDifferentCodec = errors.New("the selected codec is incompatible with this bucket")
 )
+
+// wrapError adds operation context to an error while preserving classification.
+// It returns nil when err is nil.
+func wrapError(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("rainstorm %s: %w", operation, err)
+}

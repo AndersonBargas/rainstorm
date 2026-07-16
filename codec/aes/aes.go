@@ -1,3 +1,6 @@
+// Package aes provides an AES-GCM encrypted codec that wraps another
+// codec.MarshalUnmarshaler. The inner codec performs serialization and
+// the AES layer encrypts the resulting bytes.
 package aes
 
 import (
@@ -7,7 +10,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/AndersonBargas/rainstorm/v5/codec"
+	"github.com/AndersonBargas/rainstorm/v6/codec"
 )
 
 const name = "aes-"

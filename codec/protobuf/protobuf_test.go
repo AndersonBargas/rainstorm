@@ -1,12 +1,12 @@
 package protobuf
 
 import (
-	"os"
+	"context"
 	"path/filepath"
 	"testing"
 
-	"github.com/AndersonBargas/rainstorm/v5"
-	"github.com/AndersonBargas/rainstorm/v5/codec/internal"
+	"github.com/AndersonBargas/rainstorm/v6"
+	"github.com/AndersonBargas/rainstorm/v6/codec/internal"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,34 +14,43 @@ func TestProtobuf(t *testing.T) {
 	u1 := SimpleUser{ID: 1, Name: "John"}
 	u2 := SimpleUser{}
 	internal.RoundtripTester(t, Codec, &u1, &u2)
-	require.True(t, u1.ID == u2.ID)
+	require.Equal(t, u1.ID, u2.ID)
 }
 
 func TestSave(t *testing.T) {
-	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
-	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"), rainstorm.Codec(Codec))
+	ctx := context.Background()
+	db := openTestDB(t, ctx)
+
 	u1 := SimpleUser{ID: 1, Name: "John"}
-	err := db.Save(&u1)
-	require.NoError(t, err)
+	require.NoError(t, db.Save(ctx, &u1))
+
 	u2 := SimpleUser{}
-	err = db.One("ID", uint64(1), &u2)
-	require.NoError(t, err)
-	require.Equal(t, u2.Name, u1.Name)
+	require.NoError(t, db.One(ctx, "ID", uint64(1), &u2))
+	require.Equal(t, u1.Name, u2.Name)
 }
 
 func TestGetSet(t *testing.T) {
-	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
-	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"), rainstorm.Codec(Codec))
-	err := db.Set("bucket", "key", "value")
-	require.NoError(t, err)
+	ctx := context.Background()
+	db := openTestDB(t, ctx)
+
+	require.NoError(t, db.Set(ctx, "bucket", "key", "value"))
+
 	var s string
-	err = db.Get("bucket", "key", &s)
-	require.NoError(t, err)
+	require.NoError(t, db.Get(ctx, "bucket", "key", &s))
 	require.Equal(t, "value", s)
 }
 
 func TestCodecName(t *testing.T) {
-	require.EqualValues(t, Codec.Name(), "protobuf")
+	require.Equal(t, "protobuf", Codec.Name())
+}
+
+func openTestDB(t *testing.T, ctx context.Context) *rainstorm.DB {
+	t.Helper()
+
+	db, err := rainstorm.Open(ctx, filepath.Join(t.TempDir(), "rainstorm.db"), rainstorm.Codec(Codec))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, db.Close())
+	})
+	return db
 }

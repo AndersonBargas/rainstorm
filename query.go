@@ -1,18 +1,20 @@
 package rainstorm
 
 import (
-	"github.com/AndersonBargas/rainstorm/v5/internal"
-	"github.com/AndersonBargas/rainstorm/v5/q"
+	"context"
+
+	"github.com/AndersonBargas/rainstorm/v6/internal"
+	"github.com/AndersonBargas/rainstorm/v6/q"
 	bolt "go.etcd.io/bbolt"
 )
 
-// Select a list of records that match a list of matchers. Doesn't use indexes.
+// Select builds a query that scans for records matching all supplied matchers.
 func (n *node) Select(matchers ...q.Matcher) Query {
 	tree := q.And(matchers...)
 	return newQuery(n, tree)
 }
 
-// Query is the low level query engine used by Rainstorm. It allows to operate searches through an entire bucket.
+// Query configures and executes scans over records in a bucket.
 type Query interface {
 	// Skip matching records by the given number
 	Skip(int) Query
@@ -30,25 +32,29 @@ type Query interface {
 	Bucket(string) Query
 
 	// Find a list of matching records
-	Find(interface{}) error
+	Find(ctx context.Context, to any) error
 
 	// First gets the first matching record
-	First(interface{}) error
+	First(ctx context.Context, to any) error
 
 	// Delete all matching records
-	Delete(interface{}) error
+	Delete(ctx context.Context, kind any) error
 
 	// Count all the matching records
-	Count(interface{}) (int, error)
+	Count(ctx context.Context, kind any) (int, error)
 
-	// Returns all the records without decoding them
-	Raw() ([][]byte, error)
+	// Raw returns all matching records without decoding them.
+	Raw(ctx context.Context) ([][]byte, error)
 
-	// Execute the given function for each raw element
-	RawEach(func([]byte, []byte) error) error
+	// RawEach executes fn for each matching raw key/value pair.
+	// If the callback returns an error, processing stops and that error is returned.
+	// Cancellation prevents further callbacks but does not undo callbacks already executed.
+	RawEach(ctx context.Context, fn func(key, value []byte) error) error
 
-	// Execute the given function for each element
-	Each(interface{}, func(interface{}) error) error
+	// Each decodes each matching record and executes fn.
+	// If the callback returns an error, processing stops and that error is returned.
+	// Cancellation prevents further callbacks but does not undo callbacks already executed.
+	Each(ctx context.Context, kind any, fn func(any) error) error
 }
 
 func newQuery(n *node, tree q.Matcher) *query {
@@ -95,93 +101,164 @@ func (q *query) Bucket(bucketName string) Query {
 	return q
 }
 
-func (q *query) Find(to interface{}) error {
-	sink, err := newListSink(q.node, to)
-	if err != nil {
-		return err
+func (q *query) Find(ctx context.Context, to any) error {
+	if err := checkContext(ctx); err != nil {
+		return wrapError("query find", err)
 	}
 
-	return q.runQuery(sink)
+	sink, err := newListSink(q.node, to)
+	if err != nil {
+		return wrapError("query find", err)
+	}
+
+	return wrapError("query find", q.runQuery(ctx, sink))
 }
 
-func (q *query) First(to interface{}) error {
+func (q *query) First(ctx context.Context, to any) error {
+	if err := checkContext(ctx); err != nil {
+		return wrapError("query first", err)
+	}
+
 	sink, err := newFirstSink(q.node, to)
 	if err != nil {
-		return err
+		return wrapError("query first", err)
 	}
 
 	q.limit = 1
-	return q.runQuery(sink)
+	return wrapError("query first", q.runQuery(ctx, sink))
 }
 
-func (q *query) Delete(kind interface{}) error {
+func (q *query) Delete(ctx context.Context, kind any) error {
+	if err := checkContext(ctx); err != nil {
+		return wrapError("query delete", err)
+	}
+
 	sink, err := newDeleteSink(q.node, kind)
 	if err != nil {
-		return err
+		return wrapError("query delete", err)
 	}
 
-	return q.runQuery(sink)
+	return wrapError("query delete", q.runQuery(ctx, sink))
 }
 
-func (q *query) Count(kind interface{}) (int, error) {
-	sink, err := newCountSink(q.node, kind)
-	if err != nil {
-		return 0, err
+func (q *query) Count(ctx context.Context, kind any) (int, error) {
+	if err := checkContext(ctx); err != nil {
+		return 0, wrapError("query count", err)
 	}
 
-	err = q.runQuery(sink)
+	sink, err := newCountSink(q.node, kind)
 	if err != nil {
-		return 0, err
+		return 0, wrapError("query count", err)
+	}
+
+	err = q.runQuery(ctx, sink)
+	if err != nil {
+		return 0, wrapError("query count", err)
 	}
 
 	return sink.counter, nil
 }
 
-func (q *query) Raw() ([][]byte, error) {
+func (q *query) Raw(ctx context.Context) ([][]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("query raw", err)
+	}
+
 	sink := newRawSink()
 
-	err := q.runQuery(sink)
+	err := q.runQuery(ctx, sink)
 	if err != nil {
-		return nil, err
+		return nil, wrapError("query raw", err)
 	}
 
 	return sink.results, nil
 }
 
-func (q *query) RawEach(fn func([]byte, []byte) error) error {
+func (q *query) RawEach(ctx context.Context, fn func(key, value []byte) error) error {
+	if err := checkContext(ctx); err != nil {
+		return wrapError("query raw each", err)
+	}
+
+	if fn == nil {
+		return wrapError("query raw each", ErrNilParam)
+	}
+
 	sink := newRawSink()
 
 	sink.execFn = fn
 
-	return q.runQuery(sink)
+	return wrapError("query raw each", q.runQuery(ctx, sink))
 }
 
-func (q *query) Each(kind interface{}, fn func(interface{}) error) error {
+func (q *query) Each(ctx context.Context, kind any, fn func(any) error) error {
+	if err := checkContext(ctx); err != nil {
+		return wrapError("query each", err)
+	}
+
+	if fn == nil {
+		return wrapError("query each", ErrNilParam)
+	}
+
 	sink, err := newEachSink(kind)
 	if err != nil {
-		return err
+		return wrapError("query each", err)
 	}
 
 	sink.execFn = fn
 
-	return q.runQuery(sink)
+	return wrapError("query each", q.runQuery(ctx, sink))
 }
 
-func (q *query) runQuery(sink sink) error {
+func (q *query) runQuery(ctx context.Context, sink sink) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	if q.node.tx != nil {
-		return q.query(q.node.tx, sink)
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+		if sink.readOnly() {
+			// q.query performs the final check before publishing read results.
+			// Do not turn a successful publication into a cancellation afterward.
+			return q.query(ctx, q.node.tx, sink)
+		}
+		if err := q.query(ctx, q.node.tx, sink); err != nil {
+			return err
+		}
+		return checkContext(ctx)
 	}
 	if sink.readOnly() {
-		return q.node.s.Bolt.View(func(tx *bolt.Tx) error {
-			return q.query(tx, sink)
+		return q.node.s.bolt.View(func(tx *bolt.Tx) error {
+			if err := checkContext(ctx); err != nil {
+				return err
+			}
+			// q.query performs the final check before publishing read results.
+			return q.query(ctx, tx, sink)
 		})
 	}
-	return q.node.s.Bolt.Update(func(tx *bolt.Tx) error {
-		return q.query(tx, sink)
+	return q.node.s.bolt.Update(func(tx *bolt.Tx) error {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+		err := q.query(ctx, tx, sink)
+		if err != nil {
+			return err
+		}
+		// Check before commit — the Bolt callback return value
+		// determines commit or rollback.
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
-func (q *query) query(tx *bolt.Tx, sink sink) error {
+func (q *query) query(ctx context.Context, tx *bolt.Tx, sink sink) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	bucketName := q.bucket
 	if bucketName == "" {
 		bucketName = sink.bucketName()
@@ -190,10 +267,22 @@ func (q *query) query(tx *bolt.Tx, sink sink) error {
 	if bucketName == "" && len(q.node.rootBucket) == 0 {
 		return ErrNoName
 	}
-	bucket := q.node.GetBucket(tx, bucketName)
+
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	bucket := q.node.getBucket(tx, bucketName)
+
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
 
 	if q.limit == 0 {
-		return sink.flush()
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+		return sink.flush(ctx)
 	}
 
 	sorter := newSorter(q.node, sink)
@@ -202,14 +291,26 @@ func (q *query) query(tx *bolt.Tx, sink sink) error {
 	sorter.skip = q.skip
 	sorter.limit = q.limit
 	if bucket != nil {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		c := internal.Cursor{C: bucket.Cursor(), Reverse: q.reverse}
 		for k, v := c.First(); k != nil; k, v = c.Next() {
+			if err := checkContext(ctx); err != nil {
+				return err
+			}
+
 			if v == nil {
 				continue
 			}
 
-			stop, err := sorter.filter(q.tree, bucket, k, v)
+			stop, err := sorter.filter(ctx, q.tree, bucket, k, v)
 			if err != nil {
+				return err
+			}
+
+			if err := checkContext(ctx); err != nil {
 				return err
 			}
 
@@ -219,5 +320,9 @@ func (q *query) query(tx *bolt.Tx, sink sink) error {
 		}
 	}
 
-	return sorter.flush()
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	return sorter.flush(ctx)
 }

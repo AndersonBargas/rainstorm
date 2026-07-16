@@ -1,0 +1,138 @@
+{
+  "source": {
+    "module": "github.com/AndersonBargas/rainstorm",
+    "version": "v5.3.0",
+    "generator_path": "generator/main.go"
+  },
+  "codecs": {
+    "gob": {
+      "codec_name": "gob",
+      "fixture_filename": "gob.db",
+      "v5_constructor": "gob.Codec (package github.com/AndersonBargas/rainstorm/v5/codec/gob)",
+      "record_schema": "CodecCompatibilityRecord (ID uint64, Key string unique, Category string index, Name string, Revision int)",
+      "records": [
+        {"id": 1, "key": "alpha", "category": "shared", "name": "Alpha", "revision": 1},
+        {"id": 2, "key": "beta", "category": "shared", "name": "Beta", "revision": 2},
+        {"id": 3, "key": "gamma", "category": "other", "name": "Gamma", "revision": 3}
+      ],
+      "indexes": {
+        "category": {
+          "type": "list",
+          "members": {
+            "shared": [{"id": 1, "key": "alpha"}, {"id": 2, "key": "beta"}],
+            "other": [{"id": 3, "key": "gamma"}]
+          },
+          "order": "bbolt key order (byte-ordered by index key)"
+        },
+        "key": {
+          "type": "unique",
+          "lookups": {"alpha": 1, "beta": 2, "gamma": 3}
+        }
+      },
+      "kv": {
+        "settings/name": "gob-fixture",
+        "settings/revision": 1
+      },
+      "bytes_deterministic": true
+    },
+    "msgpack": {
+      "codec_name": "msgpack",
+      "fixture_filename": "msgpack.db",
+      "v5_constructor": "msgpack.Codec (package github.com/AndersonBargas/rainstorm/v5/codec/msgpack)",
+      "record_schema": "CodecCompatibilityRecord (ID uint64, Key string unique, Category string index, Name string, Revision int)",
+      "records": [
+        {"id": 1, "key": "alpha", "category": "shared", "name": "Alpha", "revision": 1},
+        {"id": 2, "key": "beta", "category": "shared", "name": "Beta", "revision": 2},
+        {"id": 3, "key": "gamma", "category": "other", "name": "Gamma", "revision": 3}
+      ],
+      "indexes": {
+        "category": {
+          "type": "list",
+          "members": {
+            "shared": [{"id": 1, "key": "alpha"}, {"id": 2, "key": "beta"}],
+            "other": [{"id": 3, "key": "gamma"}]
+          },
+          "order": "bbolt key order (byte-ordered by index key)"
+        },
+        "key": {
+          "type": "unique",
+          "lookups": {"alpha": 1, "beta": 2, "gamma": 3}
+        }
+      },
+      "kv": {
+        "settings/name": "msgpack-fixture",
+        "settings/revision": 1
+      },
+      "bytes_deterministic": true
+    },
+    "sereal": {
+      "codec_name": "sereal",
+      "fixture_filename": "sereal.db",
+      "v5_constructor": "sereal.Codec (package github.com/AndersonBargas/rainstorm/v5/codec/sereal)",
+      "record_schema": "CodecCompatibilityRecord (ID uint64, Key string unique, Category string index, Name string, Revision int)",
+      "records": [
+        {"id": 1, "key": "alpha", "category": "shared", "name": "Alpha", "revision": 1},
+        {"id": 2, "key": "beta", "category": "shared", "name": "Beta", "revision": 2},
+        {"id": 3, "key": "gamma", "category": "other", "name": "Gamma", "revision": 3}
+      ],
+      "indexes": {
+        "category": {
+          "type": "list",
+          "members": {
+            "shared": [{"id": 1, "key": "alpha"}, {"id": 2, "key": "beta"}],
+            "other": [{"id": 3, "key": "gamma"}]
+          },
+          "order": "bbolt key order (byte-ordered by index key)"
+        },
+        "key": {
+          "type": "unique",
+          "lookups": {"alpha": 1, "beta": 2, "gamma": 3}
+        }
+      },
+      "kv": {
+        "settings/name": "sereal-fixture",
+        "settings/revision": 1
+      },
+      "bytes_deterministic": true
+    },
+    "aes": {
+      "codec_name": "aes-json",
+      "fixture_filename": "aes.db",
+      "v5_constructor": "aes.NewAES(json.Codec, key) where key is a fixed 16-byte AES-128 test key (not a production secret)",
+      "record_schema": "CodecCompatibilityRecord (ID uint64, Key string unique, Category string index, Name string, Revision int)",
+      "records": [
+        {"id": 1, "key": "alpha", "category": "shared", "name": "Alpha", "revision": 1},
+        {"id": 2, "key": "beta", "category": "shared", "name": "Beta", "revision": 2},
+        {"id": 3, "key": "gamma", "category": "other", "name": "Gamma", "revision": 3}
+      ],
+      "indexes": {
+        "category": {
+          "type": "list",
+          "members": {
+            "shared": [{"id": 1, "key": "alpha"}, {"id": 2, "key": "beta"}],
+            "other": [{"id": 3, "key": "gamma"}]
+          },
+          "order": "bbolt key order (byte-ordered by index key)"
+        },
+        "key": {
+          "type": "unique",
+          "lookups": {"alpha": 1, "beta": 2, "gamma": 3}
+        }
+      },
+      "kv": {
+        "settings/name": "aes-fixture",
+        "settings/revision": 1
+      },
+      "bytes_deterministic": false,
+      "bytes_nondeterministic_reason": "AES-GCM uses crypto/rand for nonce generation. Raw ciphertext bytes differ per generation. Semantic decoding with the correct key is deterministic.",
+      "test_key_note": "Fixed 16-byte AES-128 test key. NOT a production secret. Never printed in test output.",
+      "wrong_key_behavior": "checkVersion calls codec.Unmarshal on the stored version bytes. Wrong-key AES decryption fails; errors.Join(ErrDifferentCodec, decryptErr) is returned."
+    }
+  },
+  "exclusions": {
+    "protobuf": {
+      "status": "excluded",
+      "reason": "The existing generated SimpleUser type only carries rainstorm:\"id\" (no increment, unique, or index) and cannot represent the required indexed fixture schema without modifying the generated .pb.go file. The protobuf codec falls back to JSON for non-proto.Message values, so adding a generic-struct fixture would not prove protobuf wire compatibility and would be misleading."
+    }
+  }
+}

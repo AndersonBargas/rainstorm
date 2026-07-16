@@ -1,12 +1,17 @@
+// Package rainstorm is a toolkit for BoltDB that provides indexes, a wide range
+// of methods to store and fetch data, an advanced query system, and managed
+// transactions with context support.
 package rainstorm
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
+	"errors"
 	"time"
 
-	"github.com/AndersonBargas/rainstorm/v5/codec"
-	"github.com/AndersonBargas/rainstorm/v5/codec/json"
+	"github.com/AndersonBargas/rainstorm/v6/codec"
+	"github.com/AndersonBargas/rainstorm/v6/codec/json"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -26,24 +31,27 @@ type BucketNamer interface {
 var defaultCodec = json.Codec
 
 // Open opens a database at the given path with optional Rainstorm options.
-func Open(path string, rainstormOptions ...func(*Options) error) (*DB, error) {
+func Open(ctx context.Context, path string, rainstormOptions ...OpenOption) (*DB, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("open", err)
+	}
+
 	var err error
 
 	var opts Options
 	for _, option := range rainstormOptions {
 		if err = option(&opts); err != nil {
-			return nil, err
+			return nil, wrapError("open", err)
 		}
 	}
 
 	s := DB{
-		Bolt: opts.bolt,
+		bolt: opts.bolt,
 	}
 
 	n := node{
 		s:          &s,
 		codec:      opts.codec,
-		batchMode:  opts.batchMode,
 		rootBucket: opts.rootBucket,
 	}
 
@@ -62,16 +70,27 @@ func Open(path string, rainstormOptions ...func(*Options) error) (*DB, error) {
 	s.Node = &n
 
 	// skip if UseDB option is used
-	if s.Bolt == nil {
-		s.Bolt, err = bolt.Open(path, opts.boltMode, opts.boltOptions)
+	if s.bolt == nil {
+		s.bolt, err = bolt.Open(path, opts.boltMode, opts.boltOptions)
 		if err != nil {
-			return nil, err
+			return nil, wrapError("open", err)
+		}
+		s.boltOwned = true
+		if opts.postOpenHook != nil {
+			opts.postOpenHook(ctx)
 		}
 	}
 
-	err = s.checkVersion()
+	// Re-check the context after the (cooperative) bbolt open.
+	if err = checkContext(ctx); err != nil {
+		s.cleanupOwned()
+		return nil, wrapError("open", err)
+	}
+
+	err = s.checkVersion(ctx)
 	if err != nil {
-		return nil, err
+		s.cleanupOwned()
+		return nil, wrapError("open", err)
 	}
 
 	return &s, nil
@@ -83,26 +102,80 @@ type DB struct {
 	// The root node that points to the root bucket.
 	Node
 
-	// Bolt is still easily accessible
-	Bolt *bolt.DB
+	// bolt is the underlying bbolt database.
+	bolt *bolt.DB
+
+	// boltOwned records whether Rainstorm opened Bolt itself (true) or whether
+	// it was provided via UseDB (false).
+	boltOwned bool
 }
 
-// Close the database
+// NativeDB returns the underlying bbolt database.
+//
+// This is an advanced interoperability escape hatch. Native operations bypass
+// Rainstorm context checkpoints. Native writes can bypass codecs, indexes,
+// metadata, and invariants. Rainstorm cannot guarantee cancellation, rollback
+// composition, index consistency, or destination safety for native operations.
+// Callers must not close the returned database while Rainstorm is in use.
+// Callers are responsible for coordinating native transactions with Rainstorm
+// operations. Normal application code should prefer Rainstorm APIs and managed
+// transactions.
+func (db *DB) NativeDB() *bolt.DB {
+	if db == nil {
+		return nil
+	}
+	return db.bolt
+}
+
+// cleanupOwned closes a Rainstorm-owned bolt.DB. It is a no-op for databases
+// provided via UseDB, which remain owned by the caller.
+func (s *DB) cleanupOwned() {
+	if s.boltOwned && s.bolt != nil {
+		_ = s.bolt.Close()
+	}
+}
+
+// Close the database.
+//
+// For a Rainstorm-owned database (opened via Open without UseDB), Close closes
+// the underlying bbolt database and returns its error.
+//
+// For a borrowed database (opened via UseDB), Close returns nil and does not
+// close the underlying bbolt database. The caller retains ownership.
+//
+// If the receiver is nil or the underlying bbolt database is nil, Close returns
+// ErrNilParam without panicking.
 func (s *DB) Close() error {
-	return s.Bolt.Close()
+	if s == nil {
+		return wrapError("close", ErrNilParam)
+	}
+	if s.bolt == nil {
+		return wrapError("close", ErrNilParam)
+	}
+	if !s.boltOwned {
+		return nil
+	}
+	return wrapError("close", s.bolt.Close())
 }
 
-func (s *DB) checkVersion() error {
-	var v string
-	err := s.Get(dbinfo, "version", &v)
-	if err != nil && err != ErrNotFound {
+func (s *DB) checkVersion(ctx context.Context) error {
+	// Read the encoded value separately so a decode failure can be classified
+	// as an incompatible codec while preserving the underlying codec error.
+	raw, err := s.GetBytes(ctx, dbinfo, "version")
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return s.Set(ctx, dbinfo, "version", Version)
+		}
 		return err
 	}
 
-	// for now, we only set the current version if it doesn't exist.
-	// v1 and v2 database files are compatible.
+	var v string
+	err = s.Codec().Unmarshal(raw, &v)
+	if err != nil {
+		return errors.Join(ErrDifferentCodec, err)
+	}
 	if v == "" {
-		return s.Set(dbinfo, "version", Version)
+		return s.Set(ctx, dbinfo, "version", Version)
 	}
 
 	return nil

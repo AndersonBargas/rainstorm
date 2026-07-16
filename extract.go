@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/AndersonBargas/rainstorm/v5/index"
+	"github.com/AndersonBargas/rainstorm/v6/index"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -243,6 +243,5 @@ func isZero(v *reflect.Value) bool {
 }
 
 func isInteger(v *reflect.Value) bool {
-	kind := v.Kind()
-	return v != nil && kind >= reflect.Int && kind <= reflect.Uint64
+	return v != nil && v.Kind() >= reflect.Int && v.Kind() <= reflect.Uint64
 }

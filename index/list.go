@@ -2,28 +2,32 @@ package index
 
 import (
 	"bytes"
+	"context"
 
-	"github.com/AndersonBargas/rainstorm/v5/internal"
+	"github.com/AndersonBargas/rainstorm/v6/internal"
 	bolt "go.etcd.io/bbolt"
 )
 
 // NewListIndex loads a ListIndex
 func NewListIndex(parent *bolt.Bucket, indexName []byte) (*ListIndex, error) {
+	if parent == nil || len(indexName) == 0 {
+		return nil, wrapError("index new list", ErrNilParam)
+	}
 	var err error
 	b := parent.Bucket(indexName)
 	if b == nil {
 		if !parent.Writable() {
-			return nil, ErrNotFound
+			return nil, wrapError("index new list", ErrNotFound)
 		}
 		b, err = parent.CreateBucket(indexName)
 		if err != nil {
-			return nil, err
+			return nil, wrapError("index new list", err)
 		}
 	}
 
 	ids, err := NewUniqueIndex(b, []byte("rainstorm__ids"))
 	if err != nil {
-		return nil, err
+		return nil, wrapError("index new list", err)
 	}
 
 	return &ListIndex{
@@ -35,30 +39,52 @@ func NewListIndex(parent *bolt.Bucket, indexName []byte) (*ListIndex, error) {
 
 // ListIndex is an index that references values and the corresponding IDs.
 type ListIndex struct {
-	Parent      *bolt.Bucket
+	// Parent contains the record bucket and its index buckets.
+	Parent *bolt.Bucket
+	// IndexBucket stores value-to-ID list entries.
 	IndexBucket *bolt.Bucket
-	IDs         *UniqueIndex
+	// IDs tracks indexed IDs for cleanup and full-record traversal.
+	IDs *UniqueIndex
 }
 
 // Add a value to the list index
-func (idx *ListIndex) Add(newValue []byte, targetID []byte) error {
-	if newValue == nil || len(newValue) == 0 {
-		return ErrNilParam
+func (idx *ListIndex) Add(ctx context.Context, newValue []byte, targetID []byte) error {
+	if err := checkContext(ctx); err != nil {
+		return wrapError("index add", err)
 	}
-	if targetID == nil || len(targetID) == 0 {
-		return ErrNilParam
+	if len(newValue) == 0 {
+		return wrapError("index add", ErrNilParam)
+	}
+	if len(targetID) == 0 {
+		return wrapError("index add", ErrNilParam)
 	}
 
-	key := idx.IDs.Get(targetID)
+	key, err := idx.IDs.Get(ctx, targetID)
+	if err != nil {
+		return wrapError("index add", err)
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return wrapError("index add", err)
+	}
+
 	if key != nil {
 		err := idx.IndexBucket.Delete(key)
 		if err != nil {
-			return err
+			return wrapError("index add", err)
 		}
 
-		err = idx.IDs.Remove(targetID)
+		if err := checkContext(ctx); err != nil {
+			return wrapError("index add", err)
+		}
+
+		err = idx.IDs.Remove(ctx, targetID)
 		if err != nil {
-			return err
+			return wrapError("index add", err)
+		}
+
+		if err := checkContext(ctx); err != nil {
+			return wrapError("index add", err)
 		}
 
 		key = key[:0]
@@ -69,16 +95,28 @@ func (idx *ListIndex) Add(newValue []byte, targetID []byte) error {
 	key = append(key, '_')
 	key = append(key, targetID...)
 
-	err := idx.IDs.Add(targetID, key)
+	err = idx.IDs.Add(ctx, targetID, key)
 	if err != nil {
-		return err
+		return wrapError("index add", err)
 	}
 
-	return idx.IndexBucket.Put(key, targetID)
+	if err := checkContext(ctx); err != nil {
+		return wrapError("index add", err)
+	}
+
+	if err := idx.IndexBucket.Put(key, targetID); err != nil {
+		return wrapError("index add", err)
+	}
+
+	return wrapError("index add", checkContext(ctx))
 }
 
 // Remove a value from the unique index
-func (idx *ListIndex) Remove(value []byte) error {
+func (idx *ListIndex) Remove(ctx context.Context, value []byte) error {
+	if err := checkContext(ctx); err != nil {
+		return wrapError("index remove", err)
+	}
+
 	var err error
 	var keys [][]byte
 
@@ -86,48 +124,105 @@ func (idx *ListIndex) Remove(value []byte) error {
 	prefix := generatePrefix(value)
 
 	for k, _ := c.Seek(prefix); bytes.HasPrefix(k, prefix); k, _ = c.Next() {
-		keys = append(keys, k)
+		if err := checkContext(ctx); err != nil {
+			return wrapError("index remove", err)
+		}
+		// Defensive copy: cursor buffer is not stable across mutations.
+		keyCopy := make([]byte, len(k))
+		copy(keyCopy, k)
+		keys = append(keys, keyCopy)
 	}
 
 	for _, k := range keys {
+		if err := checkContext(ctx); err != nil {
+			return wrapError("index remove", err)
+		}
 		err = idx.IndexBucket.Delete(k)
 		if err != nil {
-			return err
+			return wrapError("index remove", err)
+		}
+		if err := checkContext(ctx); err != nil {
+			return wrapError("index remove", err)
 		}
 	}
 
-	return idx.IDs.RemoveID(value)
+	if err := checkContext(ctx); err != nil {
+		return wrapError("index remove", err)
+	}
+
+	err = idx.IDs.RemoveID(ctx, value)
+	if err != nil {
+		return wrapError("index remove", err)
+	}
+
+	return wrapError("index remove", checkContext(ctx))
 }
 
 // RemoveID removes an ID from the list index
-func (idx *ListIndex) RemoveID(targetID []byte) error {
-	value := idx.IDs.Get(targetID)
+func (idx *ListIndex) RemoveID(ctx context.Context, targetID []byte) error {
+	if err := checkContext(ctx); err != nil {
+		return wrapError("index remove id", err)
+	}
+
+	value, err := idx.IDs.Get(ctx, targetID)
+	if err != nil {
+		return wrapError("index remove id", err)
+	}
 	if value == nil {
 		return nil
 	}
 
-	err := idx.IndexBucket.Delete(value)
-	if err != nil {
-		return err
+	if err := checkContext(ctx); err != nil {
+		return wrapError("index remove id", err)
 	}
 
-	return idx.IDs.Remove(targetID)
+	err = idx.IndexBucket.Delete(value)
+	if err != nil {
+		return wrapError("index remove id", err)
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return wrapError("index remove id", err)
+	}
+
+	err = idx.IDs.Remove(ctx, targetID)
+	if err != nil {
+		return wrapError("index remove id", err)
+	}
+
+	return wrapError("index remove id", checkContext(ctx))
 }
 
 // Get the first ID corresponding to the given value
-func (idx *ListIndex) Get(value []byte) []byte {
+func (idx *ListIndex) Get(ctx context.Context, value []byte) ([]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index get", err)
+	}
+
 	c := idx.IndexBucket.Cursor()
 	prefix := generatePrefix(value)
 
-	for k, id := c.Seek(prefix); bytes.HasPrefix(k, prefix); k, id = c.Next() {
-		return id
+	k, id := c.Seek(prefix)
+	if bytes.HasPrefix(k, prefix) {
+		if err := checkContext(ctx); err != nil {
+			return nil, wrapError("index get", err)
+		}
+		return id, nil
 	}
 
-	return nil
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index get", err)
+	}
+
+	return nil, nil
 }
 
 // All the IDs corresponding to the given value
-func (idx *ListIndex) All(value []byte, opts *Options) ([][]byte, error) {
+func (idx *ListIndex) All(ctx context.Context, value []byte, opts *Options) ([][]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index all", err)
+	}
+
 	var list [][]byte
 	c := idx.IndexBucket.Cursor()
 	cur := internal.Cursor{C: c, Reverse: opts != nil && opts.Reverse}
@@ -140,6 +235,9 @@ func (idx *ListIndex) All(value []byte, opts *Options) ([][]byte, error) {
 		kc := k
 		idc := id
 		for ; kc != nil && bytes.HasPrefix(kc, prefix); kc, idc = c.Next() {
+			if err := checkContext(ctx); err != nil {
+				return nil, wrapError("index all", err)
+			}
 			count++
 			k, id = kc, idc
 		}
@@ -150,6 +248,10 @@ func (idx *ListIndex) All(value []byte, opts *Options) ([][]byte, error) {
 	}
 
 	for ; bytes.HasPrefix(k, prefix); k, id = cur.Next() {
+		if err := checkContext(ctx); err != nil {
+			return nil, wrapError("index all", err)
+		}
+
 		if opts != nil && opts.Skip > 0 {
 			opts.Skip--
 			continue
@@ -166,16 +268,28 @@ func (idx *ListIndex) All(value []byte, opts *Options) ([][]byte, error) {
 		list = append(list, id)
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index all", err)
+	}
+
 	return list, nil
 }
 
 // AllRecords returns all the IDs of this index
-func (idx *ListIndex) AllRecords(opts *Options) ([][]byte, error) {
+func (idx *ListIndex) AllRecords(ctx context.Context, opts *Options) ([][]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index all records", err)
+	}
+
 	var list [][]byte
 
 	c := internal.Cursor{C: idx.IndexBucket.Cursor(), Reverse: opts != nil && opts.Reverse}
 
 	for k, id := c.First(); k != nil; k, id = c.Next() {
+		if err := checkContext(ctx); err != nil {
+			return nil, wrapError("index all records", err)
+		}
+
 		if id == nil || bytes.Equal(k, []byte("rainstorm__ids")) {
 			continue
 		}
@@ -196,11 +310,19 @@ func (idx *ListIndex) AllRecords(opts *Options) ([][]byte, error) {
 		list = append(list, id)
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index all records", err)
+	}
+
 	return list, nil
 }
 
 // Range returns the ids corresponding to the given range of values
-func (idx *ListIndex) Range(min []byte, max []byte, opts *Options) ([][]byte, error) {
+func (idx *ListIndex) Range(ctx context.Context, min []byte, max []byte, opts *Options) ([][]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index range", err)
+	}
+
 	var list [][]byte
 
 	c := internal.RangeCursor{
@@ -215,6 +337,10 @@ func (idx *ListIndex) Range(min []byte, max []byte, opts *Options) ([][]byte, er
 	}
 
 	for k, id := c.First(); c.Continue(k); k, id = c.Next() {
+		if err := checkContext(ctx); err != nil {
+			return nil, wrapError("index range", err)
+		}
+
 		if id == nil || bytes.Equal(k, []byte("rainstorm__ids")) {
 			continue
 		}
@@ -235,11 +361,19 @@ func (idx *ListIndex) Range(min []byte, max []byte, opts *Options) ([][]byte, er
 		list = append(list, id)
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index range", err)
+	}
+
 	return list, nil
 }
 
 // Prefix returns the ids whose values have the given prefix.
-func (idx *ListIndex) Prefix(prefix []byte, opts *Options) ([][]byte, error) {
+func (idx *ListIndex) Prefix(ctx context.Context, prefix []byte, opts *Options) ([][]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index prefix", err)
+	}
+
 	var list [][]byte
 
 	c := internal.PrefixCursor{
@@ -249,6 +383,10 @@ func (idx *ListIndex) Prefix(prefix []byte, opts *Options) ([][]byte, error) {
 	}
 
 	for k, id := c.First(); k != nil && c.Continue(k); k, id = c.Next() {
+		if err := checkContext(ctx); err != nil {
+			return nil, wrapError("index prefix", err)
+		}
+
 		if id == nil || bytes.Equal(k, []byte("rainstorm__ids")) {
 			continue
 		}
@@ -268,6 +406,11 @@ func (idx *ListIndex) Prefix(prefix []byte, opts *Options) ([][]byte, error) {
 
 		list = append(list, id)
 	}
+
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index prefix", err)
+	}
+
 	return list, nil
 }
 

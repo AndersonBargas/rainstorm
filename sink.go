@@ -1,12 +1,14 @@
 package rainstorm
 
 import (
+	"context"
+	"errors"
 	"reflect"
 	"sort"
 	"time"
 
-	"github.com/AndersonBargas/rainstorm/v5/index"
-	"github.com/AndersonBargas/rainstorm/v5/q"
+	"github.com/AndersonBargas/rainstorm/v6/index"
+	"github.com/AndersonBargas/rainstorm/v6/q"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -24,24 +26,26 @@ func newSorter(n Node, snk sink) *sorter {
 		skip:  0,
 		limit: -1,
 		list:  make([]*item, 0),
-		err:   make(chan error),
-		done:  make(chan struct{}),
 	}
 }
 
 type sorter struct {
-	node    Node
-	sink    sink
-	list    []*item
-	skip    int
-	limit   int
-	orderBy []string
-	reverse bool
-	err     chan error
-	done    chan struct{}
+	node       Node
+	sink       sink
+	list       []*item
+	skip       int
+	limit      int
+	orderBy    []string
+	reverse    bool
+	ctx        context.Context
+	compareErr error
 }
 
-func (s *sorter) filter(tree q.Matcher, bucket *bolt.Bucket, k, v []byte) (bool, error) {
+func (s *sorter) filter(ctx context.Context, tree q.Matcher, bucket *bolt.Bucket, k, v []byte) (bool, error) {
+	if err := checkContext(ctx); err != nil {
+		return false, err
+	}
+
 	itm := &item{
 		bucket: bucket,
 		k:      k,
@@ -49,7 +53,11 @@ func (s *sorter) filter(tree q.Matcher, bucket *bolt.Bucket, k, v []byte) (bool,
 	}
 	rsink, ok := s.sink.(reflectSink)
 	if !ok {
-		return s.add(itm)
+		return s.add(ctx, itm)
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return false, err
 	}
 
 	newElem := rsink.elem()
@@ -57,6 +65,10 @@ func (s *sorter) filter(tree q.Matcher, bucket *bolt.Bucket, k, v []byte) (bool,
 		return false, err
 	}
 	itm.value = &newElem
+
+	if err := checkContext(ctx); err != nil {
+		return false, err
+	}
 
 	if tree != nil {
 		ok, err := tree.Match(newElem.Interface())
@@ -68,21 +80,37 @@ func (s *sorter) filter(tree q.Matcher, bucket *bolt.Bucket, k, v []byte) (bool,
 		}
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return false, err
+	}
+
 	if len(s.orderBy) == 0 {
-		return s.add(itm)
+		return s.add(ctx, itm)
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return false, err
 	}
 
 	if _, ok := s.sink.(sliceSink); ok {
 		// add directly to sink, we'll apply skip/limits after sorting
-		return false, s.sink.add(itm)
+		return false, s.sink.add(ctx, itm)
 	}
 
 	s.list = append(s.list, itm)
 
+	if err := checkContext(ctx); err != nil {
+		return false, err
+	}
+
 	return false, nil
 }
 
-func (s *sorter) add(itm *item) (stop bool, err error) {
+func (s *sorter) add(ctx context.Context, itm *item) (bool, error) {
+	if err := checkContext(ctx); err != nil {
+		return false, err
+	}
+
 	if s.limit == 0 {
 		return true, nil
 	}
@@ -96,9 +124,20 @@ func (s *sorter) add(itm *item) (stop bool, err error) {
 		s.limit--
 	}
 
-	err = s.sink.add(itm)
+	if err := checkContext(ctx); err != nil {
+		return false, err
+	}
 
-	return s.limit == 0, err
+	err := s.sink.add(ctx, itm)
+	if err != nil {
+		return false, err
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return false, err
+	}
+
+	return s.limit == 0, nil
 }
 
 func (s *sorter) compareValue(left reflect.Value, right reflect.Value) int {
@@ -156,10 +195,12 @@ func (s *sorter) compareValue(left reflect.Value, right reflect.Value) int {
 	default:
 		rawLeft, err := toBytes(left.Interface(), s.node.Codec())
 		if err != nil {
+			s.compareErr = err
 			return -1
 		}
 		rawRight, err := toBytes(right.Interface(), s.node.Codec())
 		if err != nil {
+			s.compareErr = err
 			return 1
 		}
 
@@ -179,12 +220,12 @@ func (s *sorter) less(leftElem reflect.Value, rightElem reflect.Value) bool {
 	for _, orderBy := range s.orderBy {
 		leftField := reflect.Indirect(leftElem).FieldByName(orderBy)
 		if !leftField.IsValid() {
-			s.err <- ErrNotFound
+			s.compareErr = ErrNotFound
 			return false
 		}
 		rightField := reflect.Indirect(rightElem).FieldByName(orderBy)
 		if !rightField.IsValid() {
-			s.err <- ErrNotFound
+			s.compareErr = ErrNotFound
 			return false
 		}
 
@@ -206,29 +247,38 @@ func (s *sorter) less(leftElem reflect.Value, rightElem reflect.Value) bool {
 	return false
 }
 
-func (s *sorter) flush() error {
-	if len(s.orderBy) == 0 {
-		return s.sink.flush()
+func (s *sorter) flush(ctx context.Context) error {
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
-	go func() {
-		sort.Sort(s)
-		close(s.err)
-	}()
-	err := <-s.err
-	close(s.done)
+	if len(s.orderBy) == 0 {
+		return s.sink.flush(ctx)
+	}
 
-	if err != nil {
+	// Synchronous sort — no goroutine.
+	// Store ctx so Less can observe cancellation.
+	s.ctx = ctx
+	sort.Sort(s)
+
+	if s.compareErr != nil {
+		return s.compareErr
+	}
+
+	if err := checkContext(ctx); err != nil {
 		return err
 	}
 
 	if ssink, ok := s.sink.(sliceSink); ok {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
 		if !ssink.slice().IsValid() {
-			return s.sink.flush()
+			return s.sink.flush(ctx)
 		}
 		if s.skip >= ssink.slice().Len() {
 			ssink.reset()
-			return s.sink.flush()
+			return s.sink.flush(ctx)
 		}
 		leftBound := s.skip
 		if leftBound < 0 {
@@ -244,14 +294,17 @@ func (s *sorter) flush() error {
 			rightBound = ssink.slice().Len()
 		}
 		ssink.setSlice(ssink.slice().Slice(leftBound, rightBound))
-		return s.sink.flush()
+		return s.sink.flush(ctx)
 	}
 
 	for _, itm := range s.list {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
 		if itm == nil {
 			break
 		}
-		stop, err := s.add(itm)
+		stop, err := s.add(ctx, itm)
 		if err != nil {
 			return err
 		}
@@ -260,41 +313,62 @@ func (s *sorter) flush() error {
 		}
 	}
 
-	return s.sink.flush()
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	return s.sink.flush(ctx)
 }
 
 func (s *sorter) Len() int {
-	// skip if we encountered an earlier error
-	select {
-	case <-s.done:
-		return 0
-	default:
-	}
 	if ssink, ok := s.sink.(sliceSink); ok {
 		return ssink.slice().Len()
 	}
 	return len(s.list)
-
 }
 
 func (s *sorter) Less(i, j int) bool {
-	// skip if we encountered an earlier error
-	select {
-	case <-s.done:
+	if s.compareErr != nil {
 		return false
-	default:
+	}
+
+	if err := checkContext(s.ctx); err != nil {
+		s.compareErr = err
+		return false
 	}
 
 	if ssink, ok := s.sink.(sliceSink); ok {
-		return s.less(ssink.slice().Index(i), ssink.slice().Index(j))
+		result := s.less(ssink.slice().Index(i), ssink.slice().Index(j))
+
+		if err := checkContext(s.ctx); err != nil {
+			s.compareErr = err
+			return false
+		}
+
+		return result
 	}
-	return s.less(*s.list[i].value, *s.list[j].value)
+	result := s.less(*s.list[i].value, *s.list[j].value)
+
+	if err := checkContext(s.ctx); err != nil {
+		s.compareErr = err
+		return false
+	}
+
+	return result
+}
+
+func (s *sorter) Swap(i, j int) {
+	if ssink, ok := s.sink.(sliceSink); ok {
+		reflect.Swapper(ssink.slice().Interface())(i, j)
+		return
+	}
+	s.list[i], s.list[j] = s.list[j], s.list[i]
 }
 
 type sink interface {
 	bucketName() string
-	flush() error
-	add(*item) error
+	flush(ctx context.Context) error
+	add(ctx context.Context, i *item) error
 	readOnly() bool
 }
 
@@ -325,14 +399,15 @@ func newListSink(node Node, to interface{}) (*listSink, error) {
 	// Resolve bucket name: prefer BucketNamer on the element,
 	// fall back to static type name. Empty name is allowed for
 	// anonymous types when the caller provides the bucket later.
-	name := elemType.Name()
-	if name == "" {
-		proto := reflect.New(elemType)
-		if proto.Elem().CanInterface() {
-			if bn, ok := proto.Elem().Interface().(BucketNamer); ok {
-				name = bn.RainstormBucketName()
-			}
+	name := ""
+	proto := reflect.New(elemType)
+	if proto.Elem().CanInterface() {
+		if bn, ok := proto.Elem().Interface().(BucketNamer); ok {
+			name = bn.RainstormBucketName()
 		}
+	}
+	if name == "" {
+		name = elemType.Name()
 	}
 
 	return &listSink{
@@ -341,32 +416,6 @@ func newListSink(node Node, to interface{}) (*listSink, error) {
 		isPtr:    sliceType.Elem().Kind() == reflect.Ptr,
 		elemType: elemType,
 		name:     name,
-		results:  reflect.MakeSlice(reflect.Indirect(ref).Type(), 0, 0),
-	}, nil
-}
-
-// newListSinkWithBucket creates a listSink with an explicit bucket name,
-// bypassing type-based name resolution. This is useful for dynamic types.
-func newListSinkWithBucket(node Node, to interface{}, bucketName string) (*listSink, error) {
-	ref := reflect.ValueOf(to)
-
-	if ref.Kind() != reflect.Ptr || reflect.Indirect(ref).Kind() != reflect.Slice {
-		return nil, ErrSlicePtrNeeded
-	}
-
-	sliceType := reflect.Indirect(ref).Type()
-	elemType := sliceType.Elem()
-
-	if elemType.Kind() == reflect.Ptr {
-		elemType = elemType.Elem()
-	}
-
-	return &listSink{
-		node:     node,
-		ref:      ref,
-		isPtr:    sliceType.Elem().Kind() == reflect.Ptr,
-		elemType: elemType,
-		name:     bucketName,
 		results:  reflect.MakeSlice(reflect.Indirect(ref).Type(), 0, 0),
 	}, nil
 }
@@ -404,7 +453,11 @@ func (l *listSink) bucketName() string {
 	return l.name
 }
 
-func (l *listSink) add(i *item) error {
+func (l *listSink) add(ctx context.Context, i *item) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	if l.idx == l.results.Len() {
 		if l.isPtr {
 			l.results = reflect.Append(l.results, *i.value)
@@ -413,12 +466,24 @@ func (l *listSink) add(i *item) error {
 		}
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	l.idx++
+
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
 
 	return nil
 }
 
-func (l *listSink) flush() error {
+func (l *listSink) flush(ctx context.Context) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	if l.results.IsValid() && l.results.Len() > 0 {
 		reflect.Indirect(l.ref).Set(l.results)
 		return nil
@@ -445,9 +510,10 @@ func newFirstSink(node Node, to interface{}) (*firstSink, error) {
 }
 
 type firstSink struct {
-	node  Node
-	ref   reflect.Value
-	found bool
+	node    Node
+	ref     reflect.Value
+	found   bool
+	pending *reflect.Value
 }
 
 func (f *firstSink) elem() reflect.Value {
@@ -464,17 +530,34 @@ func (f *firstSink) bucketName() string {
 	return v.Type().Name()
 }
 
-func (f *firstSink) add(i *item) error {
-	reflect.Indirect(f.ref).Set(i.value.Elem())
+func (f *firstSink) add(ctx context.Context, i *item) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	// Store internally, do not publish to destination yet.
+	val := i.value.Elem()
+	f.pending = &val
 	f.found = true
+
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (f *firstSink) flush() error {
+func (f *firstSink) flush(ctx context.Context) error {
 	if !f.found {
 		return ErrNotFound
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	// Publish pending value to caller's destination.
+	reflect.Indirect(f.ref).Set(*f.pending)
 	return nil
 }
 
@@ -509,13 +592,25 @@ func (d *deleteSink) bucketName() string {
 	return bucketName(d.ref.Interface())
 }
 
-func (d *deleteSink) add(i *item) error {
+func (d *deleteSink) add(ctx context.Context, i *item) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	info, err := extract(&d.ref)
 	if err != nil {
 		return err
 	}
 
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	for fieldName, fieldCfg := range info.Fields {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		if fieldCfg.Index == "" {
 			continue
 		}
@@ -524,20 +619,49 @@ func (d *deleteSink) add(i *item) error {
 			return err
 		}
 
-		err = idx.RemoveID(i.k)
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
+		err = idx.RemoveID(ctx, i.k)
 		if err != nil {
-			if err == index.ErrNotFound {
+			if errors.Is(err, index.ErrNotFound) {
 				return ErrNotFound
 			}
 			return err
 		}
+
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	if err := i.bucket.Delete(i.k); err != nil {
+		return err
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	d.removed++
-	return i.bucket.Delete(i.k)
+
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (d *deleteSink) flush() error {
+func (d *deleteSink) flush(ctx context.Context) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	if d.removed == 0 {
 		return ErrNotFound
 	}
@@ -576,12 +700,25 @@ func (c *countSink) bucketName() string {
 	return bucketName(c.ref.Interface())
 }
 
-func (c *countSink) add(i *item) error {
+func (c *countSink) add(ctx context.Context, i *item) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	c.counter++
+
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (c *countSink) flush() error {
+func (c *countSink) flush(ctx context.Context) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -598,14 +735,39 @@ type rawSink struct {
 	execFn  func([]byte, []byte) error
 }
 
-func (r *rawSink) add(i *item) error {
+func (r *rawSink) add(ctx context.Context, i *item) error {
 	if r.execFn != nil {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
 		err := r.execFn(i.k, i.v)
 		if err != nil {
 			return err
 		}
-	} else {
-		r.results = append(r.results, i.v)
+
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	// Defensive copy: the caller may reuse i.v buffer.
+	copied := append([]byte(nil), i.v...)
+
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	r.results = append(r.results, copied)
+
+	if err := checkContext(ctx); err != nil {
+		return err
 	}
 
 	return nil
@@ -615,7 +777,11 @@ func (r *rawSink) bucketName() string {
 	return ""
 }
 
-func (r *rawSink) flush() error {
+func (r *rawSink) flush(ctx context.Context) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -648,11 +814,28 @@ func (e *eachSink) bucketName() string {
 	return bucketName(e.ref.Interface())
 }
 
-func (e *eachSink) add(i *item) error {
-	return e.execFn(i.value.Interface())
+func (e *eachSink) add(ctx context.Context, i *item) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	err := e.execFn(i.value.Interface())
+	if err != nil {
+		return err
+	}
+
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (e *eachSink) flush() error {
+func (e *eachSink) flush(ctx context.Context) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	return nil
 }
 

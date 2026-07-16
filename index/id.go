@@ -2,13 +2,17 @@ package index
 
 import (
 	"bytes"
+	"context"
 
-	"github.com/AndersonBargas/rainstorm/v5/internal"
+	"github.com/AndersonBargas/rainstorm/v6/internal"
 	bolt "go.etcd.io/bbolt"
 )
 
-// NewIDIndex loads a IDIndex
+// NewIDIndex returns an ID index backed by parent.
 func NewIDIndex(parent *bolt.Bucket, indexName []byte) (*IDIndex, error) {
+	if parent == nil {
+		return nil, wrapError("index new id", ErrNilParam)
+	}
 	return &IDIndex{
 		IndexBucket: parent,
 	}, nil
@@ -16,41 +20,66 @@ func NewIDIndex(parent *bolt.Bucket, indexName []byte) (*IDIndex, error) {
 
 // IDIndex is an index that references unique values and the corresponding ID.
 type IDIndex struct {
+	// IndexBucket stores the encoded primary-key entries.
 	IndexBucket *bolt.Bucket
 }
 
-// Add a value to the unique index
-func (idx *IDIndex) Add(value []byte, targetID []byte) error {
-	if value == nil || len(value) == 0 {
-		return ErrNilParam
+// Add validates a primary-key index entry; the primary record bucket stores the mapping.
+func (idx *IDIndex) Add(ctx context.Context, value []byte, targetID []byte) error {
+	if err := checkContext(ctx); err != nil {
+		return wrapError("index add", err)
 	}
-	if targetID == nil || len(targetID) == 0 {
-		return ErrNilParam
+	if len(value) == 0 {
+		return wrapError("index add", ErrNilParam)
+	}
+	if len(targetID) == 0 {
+		return wrapError("index add", ErrNilParam)
 	}
 
 	return nil
 }
 
-// Remove a value from the unique index
-// This method is never called for PK index, since the there is no really an indice to be removed
-func (idx *IDIndex) Remove(value []byte) error {
+// Remove validates context for an ID-index removal; primary records are removed by the store.
+func (idx *IDIndex) Remove(ctx context.Context, value []byte) error {
+	if err := checkContext(ctx); err != nil {
+		return wrapError("index remove", err)
+	}
 	return nil
 }
 
 // RemoveID removes an ID from the unique index
-func (idx *IDIndex) RemoveID(id []byte) error {
+func (idx *IDIndex) RemoveID(ctx context.Context, id []byte) error {
+	if err := checkContext(ctx); err != nil {
+		return wrapError("index remove id", err)
+	}
 	return nil
 }
 
-// Get the id corresponding to the given value
-// This method is never called for PK index, since the finder goes direct on the bucket to get one register
-func (idx *IDIndex) Get(value []byte) []byte {
-	return idx.IndexBucket.Get(value)
+// Get returns the ID corresponding to value.
+func (idx *IDIndex) Get(ctx context.Context, value []byte) ([]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index get", err)
+	}
+
+	raw := idx.IndexBucket.Get(value)
+
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index get", err)
+	}
+
+	return raw, nil
 }
 
 // All returns all the ids corresponding to the given value
-func (idx *IDIndex) All(value []byte, opts *Options) ([][]byte, error) {
+func (idx *IDIndex) All(ctx context.Context, value []byte, opts *Options) ([][]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index all", err)
+	}
+
 	id := idx.IndexBucket.Get(value)
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index all", err)
+	}
 	if id != nil {
 		return [][]byte{id}, nil
 	}
@@ -59,14 +88,20 @@ func (idx *IDIndex) All(value []byte, opts *Options) ([][]byte, error) {
 }
 
 // AllRecords returns all the IDs of this index
-// This method is never called for PK index, since the All method is the preferred one
-func (idx *IDIndex) AllRecords(opts *Options) ([][]byte, error) {
+func (idx *IDIndex) AllRecords(ctx context.Context, opts *Options) ([][]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index all records", err)
+	}
 	var list [][]byte
 	return list, nil
 }
 
 // Range returns the ids corresponding to the given range of values
-func (idx *IDIndex) Range(min []byte, max []byte, opts *Options) ([][]byte, error) {
+func (idx *IDIndex) Range(ctx context.Context, min []byte, max []byte, opts *Options) ([][]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index range", err)
+	}
+
 	var list [][]byte
 
 	c := internal.RangeCursor{
@@ -80,6 +115,10 @@ func (idx *IDIndex) Range(min []byte, max []byte, opts *Options) ([][]byte, erro
 	}
 
 	for ident, _ := c.First(); ident != nil && c.Continue(ident); ident, _ = c.Next() {
+		if err := checkContext(ctx); err != nil {
+			return nil, wrapError("index range", err)
+		}
+
 		if opts != nil && opts.Skip > 0 {
 			opts.Skip--
 			continue
@@ -95,11 +134,20 @@ func (idx *IDIndex) Range(min []byte, max []byte, opts *Options) ([][]byte, erro
 
 		list = append(list, ident)
 	}
+
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index range", err)
+	}
+
 	return list, nil
 }
 
 // Prefix returns the ids whose values have the given prefix.
-func (idx *IDIndex) Prefix(prefix []byte, opts *Options) ([][]byte, error) {
+func (idx *IDIndex) Prefix(ctx context.Context, prefix []byte, opts *Options) ([][]byte, error) {
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index prefix", err)
+	}
+
 	var list [][]byte
 
 	c := internal.PrefixCursor{
@@ -109,6 +157,10 @@ func (idx *IDIndex) Prefix(prefix []byte, opts *Options) ([][]byte, error) {
 	}
 
 	for ident, _ := c.First(); ident != nil && c.Continue(ident); ident, _ = c.Next() {
+		if err := checkContext(ctx); err != nil {
+			return nil, wrapError("index prefix", err)
+		}
+
 		if opts != nil && opts.Skip > 0 {
 			opts.Skip--
 			continue
@@ -124,5 +176,10 @@ func (idx *IDIndex) Prefix(prefix []byte, opts *Options) ([][]byte, error) {
 
 		list = append(list, ident)
 	}
+
+	if err := checkContext(ctx); err != nil {
+		return nil, wrapError("index prefix", err)
+	}
+
 	return list, nil
 }

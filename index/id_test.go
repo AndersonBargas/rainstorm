@@ -1,13 +1,14 @@
 package index_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/AndersonBargas/rainstorm/v5"
-	"github.com/AndersonBargas/rainstorm/v5/index"
-	"github.com/AndersonBargas/rainstorm/v5/q"
+	"github.com/AndersonBargas/rainstorm/v6"
+	"github.com/AndersonBargas/rainstorm/v6/index"
+	"github.com/AndersonBargas/rainstorm/v6/q"
 	"github.com/stretchr/testify/require"
 	bolt "go.etcd.io/bbolt"
 )
@@ -27,10 +28,11 @@ type SimpleProduct struct {
 func TestIDIndex(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	ctx := context.Background()
+	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	err := db.Init(&SimpleLogin{})
+	err := db.Init(ctx, &SimpleLogin{})
 	require.NoError(t, err)
 
 	simpleLogin := &SimpleLogin{
@@ -38,35 +40,36 @@ func TestIDIndex(t *testing.T) {
 		Password: "OoopsRAWpassword!",
 	}
 
-	err = db.Save(simpleLogin)
+	err = db.Save(ctx, simpleLogin)
 	require.NoError(t, err)
 
 	var simpleLogins []SimpleLogin
 
-	err = db.AllByIndex("Email", &simpleLogins)
+	err = db.AllByIndex(ctx, "Email", &simpleLogins)
 	require.NoError(t, err)
 	require.Len(t, simpleLogins, 1)
 
-	err = db.Prefix("Email", "uni", &simpleLogins)
+	err = db.Prefix(ctx, "Email", "uni", &simpleLogins)
 	require.NoError(t, err)
 
-	err = db.Select(q.Eq("Email", "unique@example.org")).First(&SimpleLogin{})
+	err = db.Select(q.Eq("Email", "unique@example.org")).First(ctx, &SimpleLogin{})
 	require.NoError(t, err)
 
-	err = db.Set("loggedInUsers", 1, &simpleLogin)
+	err = db.Set(ctx, "loggedInUsers", 1, &simpleLogin)
 	require.NoError(t, err)
 
-	err = db.Delete("loggedInUsers", 1)
+	err = db.Delete(ctx, "loggedInUsers", 1)
 	require.NoError(t, err)
 }
 
 func TestIDIndexPrefix(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	ctx := context.Background()
+	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	err := db.Init(&SimpleLogin{})
+	err := db.Init(ctx, &SimpleLogin{})
 	require.NoError(t, err)
 
 	simpleLogin := &SimpleLogin{
@@ -74,7 +77,7 @@ func TestIDIndexPrefix(t *testing.T) {
 		Password: "OoopsRAWpassword!",
 	}
 
-	err = db.Save(simpleLogin)
+	err = db.Save(ctx, simpleLogin)
 	require.NoError(t, err)
 
 	simpleLogin = &SimpleLogin{
@@ -82,41 +85,42 @@ func TestIDIndexPrefix(t *testing.T) {
 		Password: "OoopsRAWpasswordAgain!",
 	}
 
-	err = db.Save(simpleLogin)
+	err = db.Save(ctx, simpleLogin)
 	require.NoError(t, err)
 
 	var simpleLogins []SimpleLogin
 
-	err = db.Prefix("Email", "uni", &simpleLogins)
+	err = db.Prefix(ctx, "Email", "uni", &simpleLogins)
 	require.NoError(t, err)
 
 	setSkip := func(opt *index.Options) {
 		opt.Skip = 1
 	}
-	err = db.Prefix("Email", "uni", &simpleLogins, setSkip)
+	err = db.Prefix(ctx, "Email", "uni", &simpleLogins, setSkip)
 	require.NoError(t, err)
 
 	setZeroedLimit := func(opt *index.Options) {
 		opt.Limit = 0
 	}
-	err = db.Prefix("Email", "uni", &simpleLogins, setZeroedLimit)
+	err = db.Prefix(ctx, "Email", "uni", &simpleLogins, setZeroedLimit)
 	require.Error(t, err)
-	require.True(t, rainstorm.ErrNotFound == err)
+	require.ErrorIs(t, err, rainstorm.ErrNotFound)
 
 	setLimit := func(opt *index.Options) {
 		opt.Limit = 1
 	}
-	err = db.Prefix("Email", "uni", &simpleLogins, setLimit)
+	err = db.Prefix(ctx, "Email", "uni", &simpleLogins, setLimit)
 	require.NoError(t, err)
 }
 
 func TestIDIndexRange(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	ctx := context.Background()
+	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	err := db.Init(&SimpleProduct{})
+	err := db.Init(ctx, &SimpleProduct{})
 	require.NoError(t, err)
 
 	for i := 1; i <= 50; i++ {
@@ -125,34 +129,34 @@ func TestIDIndexRange(t *testing.T) {
 			Description: "Must have product!",
 		}
 
-		err = db.Save(simpleProduct)
+		err = db.Save(ctx, simpleProduct)
 		require.NoError(t, err)
 	}
 
 	var simpleProducts []SimpleProduct
 
-	err = db.Range("Barcode", 5, 8, &simpleProducts)
+	err = db.Range(ctx, "Barcode", 5, 8, &simpleProducts)
 	require.NoError(t, err)
 
 	setSkip := func(opt *index.Options) {
 		opt.Skip = 2
 	}
-	err = db.Range("Barcode", 5, 8, &simpleProducts, setSkip)
+	err = db.Range(ctx, "Barcode", 5, 8, &simpleProducts, setSkip)
 	require.NoError(t, err)
 
 	setZeroedLimit := func(opt *index.Options) {
 		opt.Limit = 0
 	}
 
-	err = db.Range("Barcode", 5, 8, &simpleProducts, setZeroedLimit)
+	err = db.Range(ctx, "Barcode", 5, 8, &simpleProducts, setZeroedLimit)
 	require.Error(t, err)
-	require.True(t, rainstorm.ErrNotFound == err)
+	require.ErrorIs(t, err, rainstorm.ErrNotFound)
 
 	setLimit := func(opt *index.Options) {
 		opt.Limit = 1
 	}
 
-	err = db.Range("Barcode", 5, 8, &simpleProducts, setLimit)
+	err = db.Range(ctx, "Barcode", 5, 8, &simpleProducts, setLimit)
 	require.NoError(t, err)
 
 }
@@ -160,10 +164,11 @@ func TestIDIndexRange(t *testing.T) {
 func TestIDIndexParams(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	ctx := context.Background()
+	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	err := db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -171,23 +176,23 @@ func TestIDIndexParams(t *testing.T) {
 		require.NoError(t, err)
 
 		// empty value param
-		err = idx.Add([]byte(""), []byte("id"))
-		require.Equal(t, index.ErrNilParam, err)
+		err = idx.Add(ctx, []byte(""), []byte("id"))
+		require.ErrorIs(t, err, index.ErrNilParam)
 
 		// nil value param
-		err = idx.Add(nil, []byte("id"))
-		require.Equal(t, index.ErrNilParam, err)
+		err = idx.Add(ctx, nil, []byte("id"))
+		require.ErrorIs(t, err, index.ErrNilParam)
 
 		// empty id param
-		err = idx.Add([]byte("value"), []byte(""))
-		require.Equal(t, index.ErrNilParam, err)
+		err = idx.Add(ctx, []byte("value"), []byte(""))
+		require.ErrorIs(t, err, index.ErrNilParam)
 
 		// nil id param
-		err = idx.Add([]byte("value"), nil)
-		require.Equal(t, index.ErrNilParam, err)
+		err = idx.Add(ctx, []byte("value"), nil)
+		require.ErrorIs(t, err, index.ErrNilParam)
 
 		// passing value and id params
-		err = idx.Add([]byte("value"), []byte("id"))
+		err = idx.Add(ctx, []byte("value"), []byte("id"))
 		require.NoError(t, err)
 
 		return nil
@@ -199,71 +204,72 @@ func TestIDIndexParams(t *testing.T) {
 /*func TestIDIndex(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	ctx := context.Background()
+	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	err := db.Bolt.Update(func(tx *bolt.Tx) error {
+	err := db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
 		idx, err := index.NewIDIndex(b, []byte("pkindex1"))
 		require.NoError(t, err)
 
-		err = idx.Add([]byte("hello"), []byte("id1"))
+		err = idx.Add(ctx, []byte("hello"), []byte("id1"))
 		require.NoError(t, err)
 
-		err = idx.Add([]byte("hello"), []byte("id1"))
+		err = idx.Add(ctx, []byte("hello"), []byte("id1"))
 		require.NoError(t, err)
 
-		err = idx.Add([]byte("hello"), []byte("id2"))
+		err = idx.Add(ctx, []byte("hello"), []byte("id2"))
 		require.Error(t, err)
 		require.Equal(t, index.ErrAlreadyExists, err)
 
-		err = idx.Add(nil, []byte("id2"))
+		err = idx.Add(ctx, nil, []byte("id2"))
 		require.Error(t, err)
 		require.Equal(t, index.ErrNilParam, err)
 
-		err = idx.Add([]byte("hi"), nil)
+		err = idx.Add(ctx, []byte("hi"), nil)
 		require.Error(t, err)
 		require.Equal(t, index.ErrNilParam, err)
 
-		id := idx.Get([]byte("hello"))
+		id := idx.Get(ctx, []byte("hello"))
 		require.Equal(t, []byte("id1"), id)
 
-		id = idx.Get([]byte("goodbye"))
+		id = idx.Get(ctx, []byte("goodbye"))
 		require.Nil(t, id)
 
-		err = idx.Remove([]byte("hello"))
+		err = idx.Remove(ctx, []byte("hello"))
 		require.NoError(t, err)
 
-		err = idx.Remove(nil)
+		err = idx.Remove(ctx, nil)
 		require.NoError(t, err)
 
-		id = idx.Get([]byte("hello"))
+		id = idx.Get(ctx, []byte("hello"))
 		require.Nil(t, id)
 
-		err = idx.Add([]byte("hello"), []byte("id1"))
+		err = idx.Add(ctx, []byte("hello"), []byte("id1"))
 		require.NoError(t, err)
 
-		err = idx.Add([]byte("hi"), []byte("id2"))
+		err = idx.Add(ctx, []byte("hi"), []byte("id2"))
 		require.NoError(t, err)
 
-		err = idx.Add([]byte("yo"), []byte("id3"))
+		err = idx.Add(ctx, []byte("yo"), []byte("id3"))
 		require.NoError(t, err)
 
-		list, err := idx.AllRecords(nil)
+		list, err := idx.AllRecords(ctx, nil)
 		require.NoError(t, err)
 		require.Len(t, list, 3)
 
 		opts := index.NewOptions()
 		opts.Limit = 2
-		list, err = idx.AllRecords(opts)
+		list, err = idx.AllRecords(ctx, opts)
 		require.NoError(t, err)
 		require.Len(t, list, 2)
 
 		opts = index.NewOptions()
 		opts.Skip = 2
-		list, err = idx.AllRecords(opts)
+		list, err = idx.AllRecords(ctx, opts)
 		require.NoError(t, err)
 		require.Len(t, list, 1)
 		require.Equal(t, []byte("id3"), list[0])
@@ -272,28 +278,28 @@ func TestIDIndexParams(t *testing.T) {
 		opts.Skip = 2
 		opts.Limit = 1
 		opts.Reverse = true
-		list, err = idx.AllRecords(opts)
+		list, err = idx.AllRecords(ctx, opts)
 		require.NoError(t, err)
 		require.Len(t, list, 1)
 		require.Equal(t, []byte("id1"), list[0])
 
-		err = idx.RemoveID([]byte("id2"))
+		err = idx.RemoveID(ctx, []byte("id2"))
 		require.NoError(t, err)
 
-		id = idx.Get([]byte("hello"))
+		id = idx.Get(ctx, []byte("hello"))
 		require.Equal(t, []byte("id1"), id)
-		id = idx.Get([]byte("hi"))
+		id = idx.Get(ctx, []byte("hi"))
 		require.Nil(t, id)
-		id = idx.Get([]byte("yo"))
+		id = idx.Get(ctx, []byte("yo"))
 		require.Equal(t, []byte("id3"), id)
-		ids, err := idx.All([]byte("yo"), nil)
+		ids, err := idx.All(ctx, []byte("yo"), nil)
 		require.NoError(t, err)
 		require.Len(t, ids, 1)
 		require.Equal(t, []byte("id3"), ids[0])
 
-		err = idx.RemoveID([]byte("id2"))
+		err = idx.RemoveID(ctx, []byte("id2"))
 		require.NoError(t, err)
-		err = idx.RemoveID([]byte("id4"))
+		err = idx.RemoveID(ctx, []byte("id4"))
 		require.NoError(t, err)
 		return nil
 	})
@@ -304,10 +310,11 @@ func TestIDIndexParams(t *testing.T) {
 func TestIDIndexRange(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	ctx := context.Background()
+	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -316,32 +323,32 @@ func TestIDIndexRange(t *testing.T) {
 
 		for i := 0; i < 10; i++ {
 			val, _ := gob.Codec.Marshal(i)
-			err = idx.Add(val, val)
+			err = idx.Add(ctx, val, val)
 			require.NoError(t, err)
 		}
 
 		min, _ := gob.Codec.Marshal(3)
 		max, _ := gob.Codec.Marshal(5)
-		list, err := idx.Range(min, max, nil)
+		list, err := idx.Range(ctx, min, max, nil)
 		require.Len(t, list, 3)
 		require.NoError(t, err)
 		assertEncodedIntListEqual(t, []int{3, 4, 5}, list)
 
 		min, _ = gob.Codec.Marshal(11)
 		max, _ = gob.Codec.Marshal(20)
-		list, err = idx.Range(min, max, nil)
+		list, err = idx.Range(ctx, min, max, nil)
 		require.Len(t, list, 0)
 		require.NoError(t, err)
 
 		min, _ = gob.Codec.Marshal(7)
 		max, _ = gob.Codec.Marshal(2)
-		list, err = idx.Range(min, max, nil)
+		list, err = idx.Range(ctx, min, max, nil)
 		require.Len(t, list, 0)
 		require.NoError(t, err)
 
 		min, _ = gob.Codec.Marshal(-5)
 		max, _ = gob.Codec.Marshal(2)
-		list, err = idx.Range(min, max, nil)
+		list, err = idx.Range(ctx, min, max, nil)
 		require.Len(t, list, 0)
 		require.NoError(t, err)
 
@@ -349,14 +356,14 @@ func TestIDIndexRange(t *testing.T) {
 		max, _ = gob.Codec.Marshal(7)
 		opts := index.NewOptions()
 		opts.Skip = 2
-		list, err = idx.Range(min, max, opts)
+		list, err = idx.Range(ctx, min, max, opts)
 		require.Len(t, list, 3)
 		require.NoError(t, err)
 		assertEncodedIntListEqual(t, []int{5, 6, 7}, list)
 
 		opts = index.NewOptions()
 		opts.Limit = 2
-		list, err = idx.Range(min, max, opts)
+		list, err = idx.Range(ctx, min, max, opts)
 		require.Len(t, list, 2)
 		require.NoError(t, err)
 		assertEncodedIntListEqual(t, []int{3, 4}, list)
@@ -365,7 +372,7 @@ func TestIDIndexRange(t *testing.T) {
 		opts.Reverse = true
 		opts.Skip = 2
 		opts.Limit = 2
-		list, err = idx.Range(min, max, opts)
+		list, err = idx.Range(ctx, min, max, opts)
 		require.Len(t, list, 2)
 		require.NoError(t, err)
 		assertEncodedIntListEqual(t, []int{5, 4}, list)
@@ -376,10 +383,11 @@ func TestIDIndexRange(t *testing.T) {
 func TestIDIndexPrefix(t *testing.T) {
 	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
 	defer os.RemoveAll(dir)
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	ctx := context.Background()
+	db, _ := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
 	defer db.Close()
 
-	db.Bolt.Update(func(tx *bolt.Tx) error {
+	db.NativeDB().Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucket([]byte("test"))
 		require.NoError(t, err)
 
@@ -388,21 +396,21 @@ func TestIDIndexPrefix(t *testing.T) {
 
 		for i := 0; i < 10; i++ {
 			val := []byte(fmt.Sprintf("a%d", i))
-			err = idx.Add(val, val)
+			err = idx.Add(ctx, val, val)
 			require.NoError(t, err)
 		}
 
 		for i := 0; i < 10; i++ {
 			val := []byte(fmt.Sprintf("b%d", i))
-			err = idx.Add(val, val)
+			err = idx.Add(ctx, val, val)
 			require.NoError(t, err)
 		}
 
-		list, err := idx.Prefix([]byte("a"), nil)
+		list, err := idx.Prefix(ctx, []byte("a"), nil)
 		require.Len(t, list, 10)
 		require.NoError(t, err)
 
-		list, err = idx.Prefix([]byte("b"), nil)
+		list, err = idx.Prefix(ctx, []byte("b"), nil)
 		require.Len(t, list, 10)
 		require.NoError(t, err)
 		require.Equal(t, []byte("b0"), list[0])
@@ -410,7 +418,7 @@ func TestIDIndexPrefix(t *testing.T) {
 
 		opts := index.NewOptions()
 		opts.Reverse = true
-		list, err = idx.Prefix([]byte("a"), opts)
+		list, err = idx.Prefix(ctx, []byte("a"), opts)
 		require.Len(t, list, 10)
 		require.NoError(t, err)
 		require.Equal(t, []byte("a9"), list[0])
@@ -418,7 +426,7 @@ func TestIDIndexPrefix(t *testing.T) {
 
 		opts = index.NewOptions()
 		opts.Reverse = true
-		list, err = idx.Prefix([]byte("b"), opts)
+		list, err = idx.Prefix(ctx, []byte("b"), opts)
 		require.Len(t, list, 10)
 		require.NoError(t, err)
 		require.Equal(t, []byte("b9"), list[0])
@@ -427,7 +435,7 @@ func TestIDIndexPrefix(t *testing.T) {
 		opts = index.NewOptions()
 		opts.Skip = 9
 		opts.Limit = 5
-		list, err = idx.Prefix([]byte("a"), opts)
+		list, err = idx.Prefix(ctx, []byte("a"), opts)
 		require.Len(t, list, 1)
 		require.NoError(t, err)
 		require.Equal(t, []byte("a9"), list[0])
@@ -436,7 +444,7 @@ func TestIDIndexPrefix(t *testing.T) {
 		opts.Reverse = true
 		opts.Skip = 9
 		opts.Limit = 5
-		list, err = idx.Prefix([]byte("a"), opts)
+		list, err = idx.Prefix(ctx, []byte("a"), opts)
 		require.Len(t, list, 1)
 		require.NoError(t, err)
 		require.Equal(t, []byte("a0"), list[0])

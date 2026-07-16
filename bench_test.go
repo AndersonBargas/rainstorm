@@ -1,12 +1,14 @@
 package rainstorm
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 )
 
 func BenchmarkFindWithIndex(b *testing.B) {
+	ctx := context.Background()
 	db, cleanup := createDB(b)
 	defer cleanup()
 
@@ -21,7 +23,7 @@ func BenchmarkFindWithIndex(b *testing.B) {
 			w.Name = "Jack"
 			w.Group = "Admin"
 		}
-		err := db.Save(&w)
+		err := db.Save(ctx, &w)
 		if err != nil {
 			b.Error(err)
 		}
@@ -29,7 +31,7 @@ func BenchmarkFindWithIndex(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		err := db.Find("Name", "John", &users)
+		err := db.Find(ctx, "Name", "John", &users)
 		if err != nil {
 			b.Error(err)
 		}
@@ -37,6 +39,7 @@ func BenchmarkFindWithIndex(b *testing.B) {
 }
 
 func BenchmarkFindWithoutIndex(b *testing.B) {
+	ctx := context.Background()
 	db, cleanup := createDB(b)
 	defer cleanup()
 
@@ -51,7 +54,7 @@ func BenchmarkFindWithoutIndex(b *testing.B) {
 			w.Name = "Jack"
 			w.Group = "Admin"
 		}
-		err := db.Save(&w)
+		err := db.Save(ctx, &w)
 		if err != nil {
 			b.Error(err)
 		}
@@ -59,7 +62,7 @@ func BenchmarkFindWithoutIndex(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		err := db.Find("Group", "Staff", &users)
+		err := db.Find(ctx, "Group", "Staff", &users)
 		if err != nil {
 			b.Error(err)
 		}
@@ -67,13 +70,14 @@ func BenchmarkFindWithoutIndex(b *testing.B) {
 }
 
 func BenchmarkOneWithIndex(b *testing.B) {
+	ctx := context.Background()
 	db, cleanup := createDB(b)
 	defer cleanup()
 
 	var u User
 	for i := 0; i < 100; i++ {
 		w := User{Name: fmt.Sprintf("John%d", i), Group: fmt.Sprintf("Staff%d", i)}
-		err := db.Save(&w)
+		err := db.Save(ctx, &w)
 		if err != nil {
 			b.Error(err)
 		}
@@ -81,7 +85,7 @@ func BenchmarkOneWithIndex(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		err := db.One("Name", "John99", &u)
+		err := db.One(ctx, "Name", "John99", &u)
 		if err != nil {
 			b.Error(err)
 		}
@@ -89,13 +93,13 @@ func BenchmarkOneWithIndex(b *testing.B) {
 }
 
 func BenchmarkOneByID(b *testing.B) {
+	ctx := context.Background()
 	db, cleanup := createDB(b)
 	defer cleanup()
 
 	type User struct {
-		ID          int    `rainstorm:"increment"`
-		Name        string `rainstorm:"index"`
-		age         int
+		ID          int       `rainstorm:"increment"`
+		Name        string    `rainstorm:"index"`
 		DateOfBirth time.Time `rainstorm:"index"`
 		Group       string
 		Slug        string `rainstorm:"unique"`
@@ -104,7 +108,7 @@ func BenchmarkOneByID(b *testing.B) {
 	var u User
 	for i := 0; i < 100; i++ {
 		w := User{Name: fmt.Sprintf("John%d", i), Group: fmt.Sprintf("Staff%d", i)}
-		err := db.Save(&w)
+		err := db.Save(ctx, &w)
 		if err != nil {
 			b.Error(err)
 		}
@@ -112,7 +116,7 @@ func BenchmarkOneByID(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		err := db.One("ID", 99, &u)
+		err := db.One(ctx, "ID", 99, &u)
 		if err != nil {
 			b.Error(err)
 		}
@@ -120,13 +124,14 @@ func BenchmarkOneByID(b *testing.B) {
 }
 
 func BenchmarkOneWithoutIndex(b *testing.B) {
+	ctx := context.Background()
 	db, cleanup := createDB(b)
 	defer cleanup()
 
 	var u User
 	for i := 0; i < 100; i++ {
 		w := User{Name: "John", Group: fmt.Sprintf("Staff%d", i)}
-		err := db.Save(&w)
+		err := db.Save(ctx, &w)
 		if err != nil {
 			b.Error(err)
 		}
@@ -134,7 +139,7 @@ func BenchmarkOneWithoutIndex(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		err := db.One("Group", "Staff99", &u)
+		err := db.One(ctx, "Group", "Staff99", &u)
 		if err != nil {
 			b.Error(err)
 		}
@@ -142,13 +147,14 @@ func BenchmarkOneWithoutIndex(b *testing.B) {
 }
 
 func BenchmarkSave(b *testing.B) {
+	ctx := context.Background()
 	db, cleanup := createDB(b)
 	defer cleanup()
 
 	w := User{Name: "John"}
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		err := db.Save(&w)
+		err := db.Save(ctx, &w)
 		if err != nil {
 			b.Error(err)
 		}

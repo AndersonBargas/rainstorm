@@ -1,6 +1,7 @@
 package q_test
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -11,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/AndersonBargas/rainstorm/v5"
-	"github.com/AndersonBargas/rainstorm/v5/q"
+	"github.com/AndersonBargas/rainstorm/v6"
+	"github.com/AndersonBargas/rainstorm/v6/q"
 )
 
 func ExampleRe() {
@@ -20,10 +21,12 @@ func ExampleRe() {
 	defer os.RemoveAll(dir)
 	defer db.Close()
 
+	ctx := context.Background()
+
 	var users []User
 
 	// Find all users with name that starts with the letter D.
-	if err := db.Select(q.Re("Name", "^D")).Find(&users); err != nil {
+	if err := db.Select(q.Re("Name", "^D")).Find(ctx, &users); err != nil {
 		log.Println("error: Select failed:", err)
 		return
 	}
@@ -45,8 +48,15 @@ type User struct {
 }
 
 func prepareDB() (string, *rainstorm.DB) {
-	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	dir, err := os.MkdirTemp(os.TempDir(), "rainstorm")
+	if err != nil {
+		log.Fatal(err)
+	}
+	ctx := context.Background()
+	db, err := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	for i, name := range []string{"John", "Norm", "Donald", "Eric", "Dilbert"} {
 		email := strings.ToLower(name + "@provider.com")
@@ -57,7 +67,7 @@ func prepareDB() (string, *rainstorm.DB) {
 			Age:       21 + i,
 			CreatedAt: time.Now(),
 		}
-		err := db.Save(&user)
+		err = db.Save(ctx, &user)
 
 		if err != nil {
 			log.Fatal(err)

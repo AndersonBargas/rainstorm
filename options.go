@@ -1,15 +1,22 @@
 package rainstorm
 
 import (
+	"context"
 	"os"
 
-	"github.com/AndersonBargas/rainstorm/v5/codec"
-	"github.com/AndersonBargas/rainstorm/v5/index"
+	"github.com/AndersonBargas/rainstorm/v6/codec"
+	"github.com/AndersonBargas/rainstorm/v6/index"
 	bolt "go.etcd.io/bbolt"
 )
 
-// BoltOptions used to pass options to BoltDB.
-func BoltOptions(mode os.FileMode, options *bolt.Options) func(*Options) error {
+// OpenOption customizes the way Rainstorm opens a database.
+type OpenOption func(*Options) error
+
+// FindOption customizes a finder query.
+type FindOption func(*index.Options)
+
+// BoltOptions is used to pass custom file mode and options to the underlying BoltDB.
+func BoltOptions(mode os.FileMode, options *bolt.Options) OpenOption {
 	return func(opts *Options) error {
 		opts.boltMode = mode
 		opts.boltOptions = options
@@ -18,33 +25,35 @@ func BoltOptions(mode os.FileMode, options *bolt.Options) func(*Options) error {
 }
 
 // Codec used to set a custom encoder and decoder. The default is JSON.
-func Codec(c codec.MarshalUnmarshaler) func(*Options) error {
+func Codec(c codec.MarshalUnmarshaler) OpenOption {
 	return func(opts *Options) error {
 		opts.codec = c
 		return nil
 	}
 }
 
-// Batch enables the use of batch instead of update for read-write transactions.
-func Batch() func(*Options) error {
-	return func(opts *Options) error {
-		opts.batchMode = true
-		return nil
-	}
-}
-
 // Root used to set the root bucket. See also the From method.
-func Root(root ...string) func(*Options) error {
+func Root(root ...string) OpenOption {
+	path := cloneBucketPath(root)
 	return func(opts *Options) error {
-		opts.rootBucket = root
+		opts.rootBucket = cloneBucketPath(path)
 		return nil
 	}
 }
 
 // UseDB allows Rainstorm to use an existing open Bolt.DB.
-// Warning: rainstorm.DB.Close() will close the bolt.DB instance.
-func UseDB(b *bolt.DB) func(*Options) error {
+//
+// The database is borrowed: Rainstorm does not close it. The caller must keep
+// it open while Rainstorm is in use and remains responsible for closing it.
+// Rainstorm.Close() returns nil for a borrowed database.
+//
+// Native concurrent use must respect bbolt transaction rules.
+// The provided DB must not be nil.
+func UseDB(b *bolt.DB) OpenOption {
 	return func(opts *Options) error {
+		if b == nil {
+			return ErrNilParam
+		}
 		opts.path = b.Path()
 		opts.bolt = b
 		return nil
@@ -52,21 +61,21 @@ func UseDB(b *bolt.DB) func(*Options) error {
 }
 
 // Limit sets the maximum number of records to return
-func Limit(limit int) func(*index.Options) {
+func Limit(limit int) FindOption {
 	return func(opts *index.Options) {
 		opts.Limit = limit
 	}
 }
 
 // Skip sets the number of records to skip
-func Skip(offset int) func(*index.Options) {
+func Skip(offset int) FindOption {
 	return func(opts *index.Options) {
 		opts.Skip = offset
 	}
 }
 
 // Reverse will return the results in descending order
-func Reverse() func(*index.Options) {
+func Reverse() FindOption {
 	return func(opts *index.Options) {
 		opts.Reverse = true
 	}
@@ -83,9 +92,6 @@ type Options struct {
 	// Bolt options
 	boltOptions *bolt.Options
 
-	// Enable batch mode for read-write transaction, instead of update mode
-	batchMode bool
-
 	// The root bucket name
 	rootBucket []string
 
@@ -94,4 +100,8 @@ type Options struct {
 
 	// Bolt is still easily accessible
 	bolt *bolt.DB
+
+	// postOpenHook is a deterministic, package-private test seam invoked after
+	// Rainstorm opens an owned database and before initialization continues.
+	postOpenHook func(context.Context)
 }

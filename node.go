@@ -1,13 +1,14 @@
 package rainstorm
 
 import (
-	"github.com/AndersonBargas/rainstorm/v5/codec"
+	"context"
+
+	"github.com/AndersonBargas/rainstorm/v6/codec"
 	bolt "go.etcd.io/bbolt"
 )
 
-// A Node in Rainstorm represents the API to a BoltDB bucket.
+// Node exposes Rainstorm operations relative to a bbolt bucket path.
 type Node interface {
-	Tx
 	TypeStore
 	KeyValueStore
 	BucketScanner
@@ -20,30 +21,17 @@ type Node interface {
 	// In the normal, simple case this will be empty.
 	Bucket() []string
 
-	// GetBucket returns the given bucket below the current node.
-	GetBucket(tx *bolt.Tx, children ...string) *bolt.Bucket
-
-	// CreateBucketIfNotExists creates the bucket below the current node if it doesn't
-	// already exist.
-	CreateBucketIfNotExists(tx *bolt.Tx, bucket string) (*bolt.Bucket, error)
-
-	// WithTransaction returns a New Rainstorm node that will use the given transaction.
-	WithTransaction(tx *bolt.Tx) Node
-
-	// Begin starts a new transaction.
-	Begin(writable bool) (Node, error)
-
-	// Codec used by this instance of Rainstorm
+	// Codec returns the codec selected for this node.
 	Codec() codec.MarshalUnmarshaler
 
-	// WithCodec returns a New Rainstorm Node that will use the given Codec.
+	// WithCodec returns a copy of the node configured to use the given codec.
 	WithCodec(codec codec.MarshalUnmarshaler) Node
-
-	// WithBatch returns a new Rainstorm Node with the batch mode enabled.
-	WithBatch(enabled bool) Node
 }
 
-// A Node in Rainstorm represents the API to a BoltDB bucket.
+// Compile-time assertion that *node implements the final Node interface.
+var _ Node = (*node)(nil)
+
+// node implements Node for a specific bucket path and optional transaction.
 type node struct {
 	s *DB
 
@@ -55,20 +43,32 @@ type node struct {
 
 	// Codec of this node
 	codec codec.MarshalUnmarshaler
+}
 
-	// Enable batch mode for read-write transaction, instead of update mode
-	batchMode bool
+// cloneBucketPath returns a defensive copy of the given path slice.
+// nil is preserved as nil; []string{} is preserved as an empty non-nil slice.
+func cloneBucketPath(path []string) []string {
+	if path == nil {
+		return nil
+	}
+
+	cloned := make([]string, len(path))
+	copy(cloned, path)
+	return cloned
 }
 
 // From returns a new Rainstorm Node with a new bucket root below the current.
 // All DB operations on the new node will be executed relative to this bucket.
 func (n node) From(addend ...string) Node {
-	n.rootBucket = append(n.rootBucket, addend...)
+	path := make([]string, 0, len(n.rootBucket)+len(addend))
+	path = append(path, n.rootBucket...)
+	path = append(path, addend...)
+	n.rootBucket = path
 	return &n
 }
 
-// WithTransaction returns a new Rainstorm Node that will use the given transaction.
-func (n node) WithTransaction(tx *bolt.Tx) Node {
+// withTransaction returns a new Rainstorm Node that will use the given transaction.
+func (n node) withTransaction(tx *bolt.Tx) *node {
 	n.tx = tx
 	return &n
 }
@@ -79,16 +79,10 @@ func (n node) WithCodec(codec codec.MarshalUnmarshaler) Node {
 	return &n
 }
 
-// WithBatch returns a new Rainstorm Node with the batch mode enabled.
-func (n node) WithBatch(enabled bool) Node {
-	n.batchMode = enabled
-	return &n
-}
-
 // Bucket returns the bucket name as a slice from the root.
 // In the normal, simple case this will be empty.
 func (n *node) Bucket() []string {
-	return n.rootBucket
+	return cloneBucketPath(n.rootBucket)
 }
 
 // Codec returns the EncodeDecoder used by this instance of Rainstorm
@@ -97,30 +91,44 @@ func (n *node) Codec() codec.MarshalUnmarshaler {
 }
 
 // Detects if already in transaction or runs a read write transaction.
-// Uses batch mode if enabled.
-func (n *node) readWriteTx(fn func(tx *bolt.Tx) error) error {
+func (n *node) readWriteTx(ctx context.Context, fn func(tx *bolt.Tx) error) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
+	run := func(tx *bolt.Tx) error {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
+
+		if err := fn(tx); err != nil {
+			return err
+		}
+
+		return checkContext(ctx)
+	}
+
 	if n.tx != nil {
-		return fn(n.tx)
+		return run(n.tx)
 	}
 
-	if n.batchMode {
-		return n.s.Bolt.Batch(func(tx *bolt.Tx) error {
-			return fn(tx)
-		})
-	}
-
-	return n.s.Bolt.Update(func(tx *bolt.Tx) error {
-		return fn(tx)
-	})
+	return n.s.bolt.Update(run)
 }
 
 // Detects if already in transaction or runs a read transaction.
-func (n *node) readTx(fn func(tx *bolt.Tx) error) error {
+func (n *node) readTx(ctx context.Context, fn func(tx *bolt.Tx) error) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
+
 	if n.tx != nil {
 		return fn(n.tx)
 	}
 
-	return n.s.Bolt.View(func(tx *bolt.Tx) error {
+	return n.s.bolt.View(func(tx *bolt.Tx) error {
+		if err := checkContext(ctx); err != nil {
+			return err
+		}
 		return fn(tx)
 	})
 }

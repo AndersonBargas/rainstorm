@@ -1,20 +1,17 @@
-// Package protobuf contains a codec to encode and decode entities in Protocol Buffer
+// Package protobuf provides a codec for Protocol Buffers messages.
 package protobuf
 
 import (
-	"errors"
-
-	"github.com/AndersonBargas/rainstorm/v5/codec/json"
+	"github.com/AndersonBargas/rainstorm/v6/codec/json"
 	"github.com/golang/protobuf/proto"
 )
 
 const name = "protobuf"
 
-// More details on Protocol Buffers https://github.com/golang/protobuf
-var (
-	Codec                       = new(protobufCodec)
-	errNotProtocolBufferMessage = errors.New("value isn't a Protocol Buffers Message")
-)
+// Codec that encodes to and decodes from Protocol Buffers.
+// If the value does not implement proto.Message, JSON is used as a fallback.
+// More details on Protocol Buffers: https://github.com/golang/protobuf
+var Codec = new(protobufCodec)
 
 type protobufCodec int
 

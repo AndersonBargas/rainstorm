@@ -1,6 +1,7 @@
 package rainstorm
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -11,52 +12,63 @@ func TestPrefixScan(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	node := db.From("node")
 
 	// run prefix scan on empty data
-	list := node.PrefixScan("foo")
+	list, err := node.PrefixScan(ctx, "foo")
+	require.NoError(t, err)
 	require.Empty(t, list)
 
-	doTestPrefixScan(t, node)
-	doTestPrefixScan(t, db)
+	doTestPrefixScan(t, ctx, node)
+	doTestPrefixScan(t, ctx, db)
 
-	nodeWithTransaction, _ := db.Begin(true)
-	defer nodeWithTransaction.Commit()
-
-	doTestPrefixScan(t, nodeWithTransaction)
+	err = db.WriteTransaction(ctx, func(txn Node) error {
+		doTestPrefixScan(t, ctx, txn)
+		return nil
+	})
+	require.NoError(t, err)
 }
 
-func doTestPrefixScan(t *testing.T, node Node) {
+func doTestPrefixScan(t *testing.T, ctx context.Context, node Node) {
 	for i := 1; i < 3; i++ {
 		n := node.From(fmt.Sprintf("%d%02d", 2015, i))
-		err := n.Save(&SimpleUser{ID: i, Name: "John"})
+		err := n.Save(ctx, &SimpleUser{ID: i, Name: "John"})
 		require.NoError(t, err)
 	}
 
 	for i := 1; i < 4; i++ {
 		n := node.From(fmt.Sprintf("%d%02d", 2016, i))
-		err := n.Save(&SimpleUser{ID: i, Name: "John"})
+		err := n.Save(ctx, &SimpleUser{ID: i, Name: "John"})
 		require.NoError(t, err)
 	}
 
-	require.Len(t, node.PrefixScan("2015"), 2)
-	require.Len(t, node.PrefixScan("20"), 5)
+	nodes, err := node.PrefixScan(ctx, "2015")
+	require.NoError(t, err)
+	require.Len(t, nodes, 2)
 
-	buckets2016 := node.PrefixScan("2016")
+	nodes, err = node.PrefixScan(ctx, "20")
+	require.NoError(t, err)
+	require.Len(t, nodes, 5)
+
+	buckets2016, err := node.PrefixScan(ctx, "2016")
+	require.NoError(t, err)
 	require.Len(t, buckets2016, 3)
-	count, err := buckets2016[1].Count(&SimpleUser{})
+	count, err := buckets2016[1].Count(ctx, &SimpleUser{})
 
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 
-	require.NoError(t, buckets2016[1].One("ID", 2, &SimpleUser{}))
+	require.NoError(t, buckets2016[1].One(ctx, "ID", 2, &SimpleUser{}))
 }
 
 func TestPrefixScanWithEmptyPrefix(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
-	res := db.PrefixScan("")
+	res, err := db.PrefixScan(context.Background(), "")
+	require.NoError(t, err)
 	require.Len(t, res, 1)
 }
 
@@ -64,11 +76,15 @@ func TestPrefixScanSkipValues(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
-	db.Set("a", "2015", 1)
-	err := db.From("a", "2016").Save(&SimpleUser{ID: 1, Name: "John"})
+	ctx := context.Background()
+
+	err := db.Set(ctx, "a", "2015", 1)
+	require.NoError(t, err)
+	err = db.From("a", "2016").Save(ctx, &SimpleUser{ID: 1, Name: "John"})
 	require.NoError(t, err)
 
-	res := db.From("a").PrefixScan("20")
+	res, err := db.From("a").PrefixScan(ctx, "20")
+	require.NoError(t, err)
 	require.Len(t, res, 1)
 }
 
@@ -76,43 +92,62 @@ func TestRangeScan(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
 	node := db.From("node")
 
-	doTestRangeScan(t, node)
-	doTestRangeScan(t, db)
+	doTestRangeScan(t, ctx, node)
+	doTestRangeScan(t, ctx, db)
 
-	nodeWithTransaction, _ := db.Begin(true)
-	defer nodeWithTransaction.Commit()
-
-	doTestRangeScan(t, nodeWithTransaction)
+	err := db.WriteTransaction(ctx, func(txn Node) error {
+		doTestRangeScan(t, ctx, txn)
+		return nil
+	})
+	require.NoError(t, err)
 }
 
-func doTestRangeScan(t *testing.T, node Node) {
+func doTestRangeScan(t *testing.T, ctx context.Context, node Node) {
 
 	for y := 2012; y <= 2016; y++ {
 		for m := 1; m <= 12; m++ {
 			n := node.From(fmt.Sprintf("%d%02d", y, m))
-			require.NoError(t, n.Save(&SimpleUser{ID: m, Name: "John"}))
+			require.NoError(t, n.Save(ctx, &SimpleUser{ID: m, Name: "John"}))
 		}
 	}
 
-	require.Len(t, node.RangeScan("2015", "2016"), 12)
-	require.Len(t, node.RangeScan("201201", "201203"), 3)
-	require.Len(t, node.RangeScan("2012", "201612"), 60)
-	require.Len(t, node.RangeScan("2012", "2017"), 60)
+	nodes, err := node.RangeScan(ctx, "2015", "2016")
+	require.NoError(t, err)
+	require.Len(t, nodes, 12)
 
-	secondIn2015 := node.RangeScan("2015", "2016")[1]
-	require.NoError(t, secondIn2015.One("ID", 2, &SimpleUser{}))
+	nodes, err = node.RangeScan(ctx, "201201", "201203")
+	require.NoError(t, err)
+	require.Len(t, nodes, 3)
+
+	nodes, err = node.RangeScan(ctx, "2012", "201612")
+	require.NoError(t, err)
+	require.Len(t, nodes, 60)
+
+	nodes, err = node.RangeScan(ctx, "2012", "2017")
+	require.NoError(t, err)
+	require.Len(t, nodes, 60)
+
+	secondIn2015, err := node.RangeScan(ctx, "2015", "2016")
+	require.NoError(t, err)
+	require.NoError(t, secondIn2015[1].One(ctx, "ID", 2, &SimpleUser{}))
 }
 
 func TestRangeScanSkipValues(t *testing.T) {
 	db, cleanup := createDB(t)
 	defer cleanup()
 
-	db.Set("a", "2015", 1)
-	err := db.From("a", "2016").Save(&SimpleUser{ID: 1, Name: "John"})
+	ctx := context.Background()
+
+	err := db.Set(ctx, "a", "2015", 1)
+	require.NoError(t, err)
+	err = db.From("a", "2016").Save(ctx, &SimpleUser{ID: 1, Name: "John"})
 	require.NoError(t, err)
 
-	res := db.From("a").RangeScan("2015", "2018")
+	res, err := db.From("a").RangeScan(ctx, "2015", "2018")
+	require.NoError(t, err)
 	require.Len(t, res, 1)
 }

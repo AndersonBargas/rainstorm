@@ -1,0 +1,209 @@
+{
+  "source": {
+    "module": "github.com/AndersonBargas/rainstorm",
+    "version": "v5.3.0",
+    "generator_path": "generator/main.go",
+    "fixture_filename": "baseline.db"
+  },
+  "codec": "default JSON",
+  "root_records": [
+    {
+      "id": 1,
+      "email": "alice@example.test",
+      "team": "team-blue",
+      "name": "Alice",
+      "revision": 1
+    },
+    {
+      "id": 2,
+      "email": "bob@example.test",
+      "team": "team-blue",
+      "name": "Bob",
+      "revision": 1
+    },
+    {
+      "id": 3,
+      "email": "carol@example.test",
+      "team": "team-red",
+      "name": "Carol",
+      "revision": 2
+    },
+    {
+      "id": 4,
+      "email": "dave@example.test",
+      "team": "team-green",
+      "name": "Dave",
+      "revision": 3
+    }
+  ],
+  "indexes": {
+    "team": {
+      "type": "list",
+      "members": {
+        "team-blue": [
+          {"id": 1, "email": "alice@example.test"},
+          {"id": 2, "email": "bob@example.test"}
+        ],
+        "team-red": [
+          {"id": 3, "email": "carol@example.test"}
+        ],
+        "team-green": [
+          {"id": 4, "email": "dave@example.test"}
+        ]
+      },
+      "order": "bbolt key order (byte-ordered by index key)"
+    },
+    "email": {
+      "type": "unique",
+      "lookups": {
+        "alice@example.test": 1,
+        "bob@example.test": 2,
+        "carol@example.test": 3,
+        "dave@example.test": 4
+      }
+    }
+  },
+  "nested": {
+    "path": ["tenant", "acme"],
+    "records": [
+      {
+        "id": 1,
+        "email": "nested@example.test",
+        "team": "team-nested",
+        "name": "Nested User",
+        "revision": 5
+      }
+    ]
+  },
+  "kv": {
+    "root": {
+      "bucket": "settings",
+      "entries": [
+        {"key": "theme", "value": "dark"},
+        {"key": "retries", "value": 3}
+      ]
+    },
+    "nested": {
+      "bucket": "settings",
+      "path": ["tenant", "acme"],
+      "entries": [
+        {"key": "region", "value": "us-test-1"}
+      ]
+    }
+  },
+  "bucket_namer": {
+    "go_type_name": "CompatibilityNamedEvent",
+    "custom_bucket_name": "compatibility_named_events",
+    "receiver_form": "value receiver (CompatibilityNamedEvent)",
+    "records": [
+      {"id": 1, "code": "event-alpha", "category": "audit", "message": "Alpha"},
+      {"id": 2, "code": "event-beta", "category": "audit", "message": "Beta"},
+      {"id": 3, "code": "event-gamma", "category": "system", "message": "Gamma"}
+    ],
+    "indexes": {
+      "category": {
+        "type": "list",
+        "members": {
+          "audit": [
+            {"id": 1, "code": "event-alpha"},
+            {"id": 2, "code": "event-beta"}
+          ],
+          "system": [
+            {"id": 3, "code": "event-gamma"}
+          ]
+        },
+        "order": "bbolt key order (byte-ordered by index key)"
+      },
+      "code": {
+        "type": "unique",
+        "lookups": {
+          "event-alpha": 1,
+          "event-beta": 2,
+          "event-gamma": 3
+        }
+      }
+    }
+  },
+  "runtime_explicit": {
+    "path": ["runtime", "explicit"],
+    "go_type": "reflect.StructOf (runtime-generated, no named Go type)",
+    "bucket_behavior": "data stored in the explicit bucket's root (runtime-generated type has empty name)",
+    "field_schema": {
+      "ID": {"go_type": "uint64", "tag": "id,increment"},
+      "Slug": {"go_type": "string", "tag": "unique"},
+      "Group": {"go_type": "string", "tag": "index"},
+      "Label": {"go_type": "string", "tag": ""},
+      "Revision": {"go_type": "int", "tag": ""}
+    },
+    "records": [
+      {"id": 1, "slug": "runtime-alpha", "group": "group-shared", "label": "Runtime Alpha", "revision": 1},
+      {"id": 2, "slug": "runtime-beta", "group": "group-shared", "label": "Runtime Beta", "revision": 1},
+      {"id": 3, "slug": "runtime-gamma", "group": "group-other", "label": "Runtime Gamma", "revision": 2}
+    ],
+    "indexes": {
+      "group": {
+        "type": "list",
+        "members": {
+          "group-shared": [
+            {"id": 1, "slug": "runtime-alpha"},
+            {"id": 2, "slug": "runtime-beta"}
+          ],
+          "group-other": [
+            {"id": 3, "slug": "runtime-gamma"}
+          ]
+        },
+        "order": "bbolt key order (byte-ordered by index key)"
+      },
+      "slug": {
+        "type": "unique",
+        "lookups": {
+          "runtime-alpha": 1,
+          "runtime-beta": 2,
+          "runtime-gamma": 3
+        }
+      }
+    }
+  },
+  "runtime_root_data": {
+    "path": ["runtime", "root-data"],
+    "go_type": "reflect.StructOf (runtime-generated, no named Go type)",
+    "bucket_behavior": "node root itself is the data bucket (runtime-generated type has empty name, so no sub-bucket is created)",
+    "field_schema": {
+      "ID": {"go_type": "uint64", "tag": "id,increment"},
+      "Slug": {"go_type": "string", "tag": "unique"},
+      "Group": {"go_type": "string", "tag": "index"},
+      "Label": {"go_type": "string", "tag": ""},
+      "Revision": {"go_type": "int", "tag": ""}
+    },
+    "records": [
+      {"id": 1, "slug": "root-runtime-alpha", "group": "root-group", "label": "Root Runtime Alpha", "revision": 3},
+      {"id": 2, "slug": "root-runtime-beta", "group": "root-group", "label": "Root Runtime Beta", "revision": 4}
+    ],
+    "indexes": {
+      "group": {
+        "type": "list",
+        "members": {
+          "root-group": [
+            {"id": 1, "slug": "root-runtime-alpha"},
+            {"id": 2, "slug": "root-runtime-beta"}
+          ]
+        },
+        "order": "bbolt key order (byte-ordered by index key)"
+      },
+      "slug": {
+        "type": "unique",
+        "lookups": {
+          "root-runtime-alpha": 1,
+          "root-runtime-beta": 2
+        }
+      }
+    }
+  },
+  "exclusions_r6_5b1": [
+    "non-default codecs",
+    "v5 reopening a database modified by v6",
+    "benchmarks",
+    "CI/dependency updates",
+    "production optimization"
+  ]
+}

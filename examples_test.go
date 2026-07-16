@@ -1,6 +1,8 @@
 package rainstorm_test
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -8,14 +10,52 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AndersonBargas/rainstorm/v5"
-	"github.com/AndersonBargas/rainstorm/v5/codec/gob"
+	"github.com/AndersonBargas/rainstorm/v6"
+	"github.com/AndersonBargas/rainstorm/v6/codec/gob"
 	bolt "go.etcd.io/bbolt"
 )
 
+func ExampleOpen() {
+	dir, err := os.MkdirTemp(os.TempDir(), "rainstorm")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			log.Println("remove temporary directory:", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	db, err := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Println("close error:", err)
+		}
+	}()
+
+	fmt.Println("opened successfully")
+
+	// Output:
+	// opened successfully
+}
+
 func ExampleDB_Save() {
-	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
-	defer os.RemoveAll(dir)
+	dir, err := os.MkdirTemp(os.TempDir(), "rainstorm")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			log.Println("remove temporary directory:", err)
+		}
+	}()
+
+	ctx := context.Background()
 
 	type User struct {
 		ID        int    `rainstorm:"id,increment"` // the increment tag will auto-increment integer IDs without existing values.
@@ -27,8 +67,15 @@ func ExampleDB_Save() {
 	}
 
 	// Open takes an optional list of options as the last argument.
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"), rainstorm.Codec(gob.Codec))
-	defer db.Close()
+	db, err := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"), rainstorm.Codec(gob.Codec))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Println("close error:", err)
+		}
+	}()
 
 	user := User{
 		Group:     "staff",
@@ -38,7 +85,7 @@ func ExampleDB_Save() {
 		CreatedAt: time.Now(),
 	}
 
-	err := db.Save(&user)
+	err = db.Save(ctx, &user)
 
 	if err != nil {
 		log.Fatal(err)
@@ -50,12 +97,12 @@ func ExampleDB_Save() {
 	user2.ID = 0
 
 	// Save will fail because of the unique constraint on Email
-	err = db.Save(&user2)
+	err = db.Save(ctx, &user2)
 	fmt.Println(err)
 
 	// Output:
 	// 1
-	// already exists
+	// rainstorm save: already exists
 }
 
 func ExampleDB_One() {
@@ -63,26 +110,28 @@ func ExampleDB_One() {
 	defer os.RemoveAll(dir)
 	defer db.Close()
 
+	ctx := context.Background()
+
 	var user User
 
-	err := db.One("Email", "john@provider.com", &user)
+	err := db.One(ctx, "Email", "john@provider.com", &user)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// also works on unindexed fields
-	err = db.One("Name", "John", &user)
+	err = db.One(ctx, "Name", "John", &user)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = db.One("Name", "Jack", &user)
+	err = db.One(ctx, "Name", "Jack", &user)
 	fmt.Println(err)
 
 	// Output:
-	// not found
+	// rainstorm one: not found
 }
 
 func ExampleDB_Find() {
@@ -90,8 +139,10 @@ func ExampleDB_Find() {
 	defer os.RemoveAll(dir)
 	defer db.Close()
 
+	ctx := context.Background()
+
 	var users []User
-	err := db.Find("Group", "staff", &users)
+	err := db.Find(ctx, "Group", "staff", &users)
 
 	if err != nil {
 		log.Fatal(err)
@@ -108,8 +159,10 @@ func ExampleDB_All() {
 	defer os.RemoveAll(dir)
 	defer db.Close()
 
+	ctx := context.Background()
+
 	var users []User
-	err := db.All(&users)
+	err := db.All(ctx, &users)
 
 	if err != nil {
 		log.Fatal(err)
@@ -126,8 +179,10 @@ func ExampleDB_AllByIndex() {
 	defer os.RemoveAll(dir)
 	defer db.Close()
 
+	ctx := context.Background()
+
 	var users []User
-	err := db.AllByIndex("CreatedAt", &users)
+	err := db.AllByIndex(ctx, "CreatedAt", &users)
 
 	if err != nil {
 		log.Fatal(err)
@@ -144,8 +199,10 @@ func ExampleDB_Range() {
 	defer os.RemoveAll(dir)
 	defer db.Close()
 
+	ctx := context.Background()
+
 	var users []User
-	err := db.Range("Age", 21, 22, &users)
+	err := db.Range(ctx, "Age", 21, 22, &users)
 
 	if err != nil {
 		log.Fatal(err)
@@ -162,8 +219,10 @@ func ExampleLimit() {
 	defer os.RemoveAll(dir)
 	defer db.Close()
 
+	ctx := context.Background()
+
 	var users []User
-	err := db.All(&users, rainstorm.Limit(2))
+	err := db.All(ctx, &users, rainstorm.Limit(2))
 
 	if err != nil {
 		log.Fatal(err)
@@ -180,8 +239,10 @@ func ExampleSkip() {
 	defer os.RemoveAll(dir)
 	defer db.Close()
 
+	ctx := context.Background()
+
 	var users []User
-	err := db.All(&users, rainstorm.Skip(1))
+	err := db.All(ctx, &users, rainstorm.Skip(1))
 
 	if err != nil {
 		log.Fatal(err)
@@ -194,24 +255,46 @@ func ExampleSkip() {
 }
 
 func ExampleUseDB() {
-	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
-	defer os.RemoveAll(dir)
+	dir, err := os.MkdirTemp(os.TempDir(), "rainstorm")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			log.Println("remove temporary directory:", err)
+		}
+	}()
+
+	ctx := context.Background()
 
 	bDB, err := bolt.Open(filepath.Join(dir, "bolt.db"), 0600, &bolt.Options{Timeout: 10 * time.Second})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	db, _ := rainstorm.Open("", rainstorm.UseDB(bDB))
-	defer db.Close()
+	db, err := rainstorm.Open(ctx, "", rainstorm.UseDB(bDB))
+	if err != nil {
+		if closeErr := bDB.Close(); closeErr != nil {
+			log.Println("native close after open failure:", closeErr)
+		}
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Println("rainstorm close error:", err)
+		}
+		if err := bDB.Close(); err != nil {
+			log.Println("native close error:", err)
+		}
+	}()
 
-	err = db.Save(&User{ID: 10})
+	err = db.Save(ctx, &User{ID: 10})
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	var user User
-	err = db.One("ID", 10, &user)
+	err = db.One(ctx, "ID", 10, &user)
 	fmt.Println(err)
 
 	// Output:
@@ -223,74 +306,73 @@ func ExampleDB_DeleteStruct() {
 	defer os.RemoveAll(dir)
 	defer db.Close()
 
+	ctx := context.Background()
+
 	var user User
 
-	err := db.One("ID", 1, &user)
+	err := db.One(ctx, "ID", 1, &user)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = db.DeleteStruct(&user)
+	err = db.DeleteStruct(ctx, &user)
 	fmt.Println(err)
 
 	// Output:
 	// <nil>
 }
 
-func ExampleDB_Begin() {
+func ExampleDB_WriteTransaction() {
 	dir, db := prepareDB()
 	defer os.RemoveAll(dir)
 	defer db.Close()
 
+	ctx := context.Background()
+
 	// both start out with a balance of 10000 cents
 	var account1, account2 Account
 
-	tx, err := db.Begin(true)
+	err := db.WriteTransaction(ctx, func(tx rainstorm.Node) error {
+		err := tx.One(ctx, "ID", 1, &account1)
+		if err != nil {
+			return err
+		}
+
+		err = tx.One(ctx, "ID", 2, &account2)
+		if err != nil {
+			return err
+		}
+
+		account1.Amount -= 1000
+		account2.Amount += 1000
+
+		err = tx.Save(ctx, &account1)
+		if err != nil {
+			return err
+		}
+
+		err = tx.Save(ctx, &account2)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
 
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer tx.Rollback()
-
-	err = tx.One("ID", 1, &account1)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = tx.One("ID", 2, &account2)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	account1.Amount -= 1000
-	account2.Amount += 1000
-
-	err = tx.Save(&account1)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = tx.Save(&account2)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	tx.Commit()
 
 	var account1Reloaded, account2Reloaded Account
 
-	err = db.One("ID", 1, &account1Reloaded)
+	err = db.One(ctx, "ID", 1, &account1Reloaded)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = db.One("ID", 2, &account2Reloaded)
+	err = db.One(ctx, "ID", 2, &account2Reloaded)
 
 	if err != nil {
 		log.Fatal(err)
@@ -304,22 +386,71 @@ func ExampleDB_Begin() {
 	// Amount in account 2: 11000
 }
 
+func ExampleDB_ReadTransaction() {
+	dir, db := prepareDB()
+	defer os.RemoveAll(dir)
+	defer db.Close()
+
+	ctx := context.Background()
+
+	var u User
+	// ReadTransaction executes the callback in a managed read-only transaction.
+	err := db.ReadTransaction(ctx, func(tx rainstorm.Node) error {
+		return tx.One(ctx, "ID", 1, &u)
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(u.Name)
+
+	// Output:
+	// John
+}
+
+func Example_errorsIs() {
+	dir, db := prepareDB()
+	defer os.RemoveAll(dir)
+	defer db.Close()
+
+	ctx := context.Background()
+
+	var user User
+	err := db.One(ctx, "Name", "Nobody", &user)
+	// Classify errors with errors.Is, never with direct equality.
+	if errors.Is(err, rainstorm.ErrNotFound) {
+		fmt.Println("not found")
+	}
+
+	err = db.One(ctx, "ID", 1, &user)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(user.ID, user.Name)
+
+	// Output:
+	// not found
+	// 1 John
+}
+
 func ExampleDB_From() {
 	dir, db := prepareDB()
 	defer os.RemoveAll(dir)
 	defer db.Close()
 
+	ctx := context.Background()
+
 	// Create some sub buckets to partition the data.
 	privateNotes := db.From("notes", "private")
 	workNotes := db.From("notes", "work")
 
-	err := privateNotes.Save(&Note{ID: "private1", Text: "This is some private text."})
+	err := privateNotes.Save(ctx, &Note{ID: "private1", Text: "This is some private text."})
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = workNotes.Save(&Note{ID: "work1", Text: "Work related."})
+	err = workNotes.Save(ctx, &Note{ID: "work1", Text: "Work related."})
 
 	if err != nil {
 		log.Fatal(err)
@@ -327,18 +458,18 @@ func ExampleDB_From() {
 
 	var privateNote, workNote, personalNote Note
 
-	err = privateNotes.One("ID", "work1", &workNote)
+	err = privateNotes.One(ctx, "ID", "work1", &workNote)
 
 	// Not found: Wrong bucket.
 	fmt.Println(err)
 
-	err = workNotes.One("ID", "work1", &workNote)
+	err = workNotes.One(ctx, "ID", "work1", &workNote)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = privateNotes.One("ID", "private1", &privateNote)
+	err = privateNotes.One(ctx, "ID", "private1", &privateNote)
 
 	if err != nil {
 		log.Fatal(err)
@@ -349,13 +480,13 @@ func ExampleDB_From() {
 
 	// These can be nested further if needed:
 	personalNotes := privateNotes.From("personal")
-	err = personalNotes.Save(&Note{ID: "personal1", Text: "This is some very personal text."})
+	err = personalNotes.Save(ctx, &Note{ID: "personal1", Text: "This is some very personal text."})
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = personalNotes.One("ID", "personal1", &personalNote)
+	err = personalNotes.One(ctx, "ID", "personal1", &personalNote)
 
 	if err != nil {
 		log.Fatal(err)
@@ -364,7 +495,7 @@ func ExampleDB_From() {
 	fmt.Println(personalNote.Text)
 
 	// Output:
-	// not found
+	// rainstorm one: not found
 	// Work related.
 	// This is some private text.
 	// This is some very personal text.
@@ -375,31 +506,35 @@ func ExampleDB_Drop() {
 	defer os.RemoveAll(dir)
 	defer db.Close()
 
+	ctx := context.Background()
+
 	var user User
 
-	err := db.One("Email", "john@provider.com", &user)
+	err := db.One(ctx, "Email", "john@provider.com", &user)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = db.Drop("User")
+	err = db.Drop(ctx, "User")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// One only works for indexed fields.
-	err = db.One("Email", "john@provider.com", &user)
+	err = db.One(ctx, "Email", "john@provider.com", &user)
 	fmt.Println(err)
 
 	// Output:
-	// not found
+	// rainstorm one: not found
 }
 
 func ExampleNode_PrefixScan() {
 	dir, db := prepareDB()
 	defer os.RemoveAll(dir)
 	defer db.Close()
+
+	ctx := context.Background()
 
 	// The PrefixScan method is available on both DB and Node.
 	// This example shows the usage on Node.
@@ -419,7 +554,7 @@ func ExampleNode_PrefixScan() {
 
 			for k := 0; k < numNotes; k++ {
 				noteID := fmt.Sprintf("%d-%d", j, k)
-				if err := bucket.Save(&Note{ID: noteID, Text: fmt.Sprintf("Note %s", noteID)}); err != nil {
+				if err := bucket.Save(ctx, &Note{ID: noteID, Text: fmt.Sprintf("Note %s", noteID)}); err != nil {
 					log.Fatal(err)
 				}
 			}
@@ -427,17 +562,24 @@ func ExampleNode_PrefixScan() {
 	}
 
 	// There are now three years worth of notes. Let's look at 2016:
-	nodes := notes.PrefixScan("2016")
+	nodes, err := notes.PrefixScan(ctx, "2016")
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	fmt.Println("Note buckets in 2016:", len(nodes))
 
-	march := notes.PrefixScan("201603")[0]
+	marchNodes, err := notes.PrefixScan(ctx, "201603")
+	if err != nil {
+		log.Fatal(err)
+	}
+	march := marchNodes[0]
 
 	// The two below points to the same bucket:
 	fmt.Println("Bucket", march.Bucket()[1])
 	fmt.Println("Bucket", nodes[2].Bucket()[1])
 
-	count, err := march.Count(&Note{})
+	count, err := march.Count(ctx, &Note{})
 
 	if err != nil {
 		log.Fatal(err)
@@ -458,6 +600,8 @@ func ExampleNode_RangeScan() {
 	defer os.RemoveAll(dir)
 	defer db.Close()
 
+	ctx := context.Background()
+
 	// The RangeScan method is available on both DB and Node.
 	// This example shows the usage on Node.
 	// The Node notes will be the top-level bucket.
@@ -470,7 +614,7 @@ func ExampleNode_RangeScan() {
 				// Must left-pad the month so it is sortable.
 				bucket := notes.From(fmt.Sprintf("%d%02d", i, j))
 				noteID := fmt.Sprintf("%d-%d", j, k)
-				if err := bucket.Save(&Note{ID: noteID, Text: fmt.Sprintf("Note %s", noteID)}); err != nil {
+				if err := bucket.Save(ctx, &Note{ID: noteID, Text: fmt.Sprintf("Note %s", noteID)}); err != nil {
 					log.Fatal(err)
 				}
 			}
@@ -478,11 +622,14 @@ func ExampleNode_RangeScan() {
 	}
 
 	// There are now four years worth of notes. Let's look at first half of 2014:
-	nodes := notes.RangeScan("201401", "201406")
+	nodes, err := notes.RangeScan(ctx, "201401", "201406")
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	fmt.Println("Note buckets in first half of 2014:", len(nodes))
 
-	notesCount, err := nodes[0].Count(&Note{})
+	notesCount, err := nodes[0].Count(ctx, &Note{})
 
 	if err != nil {
 		log.Fatal(err)
@@ -515,8 +662,15 @@ type Note struct {
 }
 
 func prepareDB() (string, *rainstorm.DB) {
-	dir, _ := os.MkdirTemp(os.TempDir(), "rainstorm")
-	db, _ := rainstorm.Open(filepath.Join(dir, "rainstorm.db"))
+	dir, err := os.MkdirTemp(os.TempDir(), "rainstorm")
+	if err != nil {
+		log.Fatal(err)
+	}
+	ctx := context.Background()
+	db, err := rainstorm.Open(ctx, filepath.Join(dir, "rainstorm.db"))
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	for i, name := range []string{"John", "Eric", "Dilbert"} {
 		email := strings.ToLower(name + "@provider.com")
@@ -527,7 +681,7 @@ func prepareDB() (string, *rainstorm.DB) {
 			Age:       21 + i,
 			CreatedAt: time.Now(),
 		}
-		err := db.Save(&user)
+		err = db.Save(ctx, &user)
 
 		if err != nil {
 			log.Fatal(err)
@@ -537,7 +691,7 @@ func prepareDB() (string, *rainstorm.DB) {
 	for i := int64(0); i < 10; i++ {
 		account := Account{Amount: 10000}
 
-		err := db.Save(&account)
+		err = db.Save(ctx, &account)
 
 		if err != nil {
 			log.Fatal(err)
