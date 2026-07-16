@@ -2,8 +2,6 @@
 package protobuf
 
 import (
-	"errors"
-
 	"github.com/AndersonBargas/rainstorm/v6/codec/json"
 	"github.com/golang/protobuf/proto"
 )
@@ -11,10 +9,7 @@ import (
 const name = "protobuf"
 
 // More details on Protocol Buffers https://github.com/golang/protobuf
-var (
-	Codec                       = new(protobufCodec)
-	errNotProtocolBufferMessage = errors.New("value isn't a Protocol Buffers Message")
-)
+var Codec = new(protobufCodec)
 
 type protobufCodec int
 

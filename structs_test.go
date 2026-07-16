@@ -6,7 +6,8 @@ import (
 )
 
 type ClassicNoTags struct {
-	PublicField  int
+	PublicField int
+	//lint:ignore U1000 Private fields are deliberate reflection fixtures.
 	privateField string
 	Date         time.Time
 	InlineStruct struct {
@@ -17,8 +18,9 @@ type ClassicNoTags struct {
 }
 
 type ClassicBadTags struct {
-	ID           string
-	PublicField  int `rainstorm:"mrots"`
+	ID          string
+	PublicField int `rainstorm:"mrots"`
+	//lint:ignore U1000 Private fields are deliberate reflection fixtures.
 	privateField string
 	Date         time.Time
 	InlineStruct struct {
@@ -29,9 +31,11 @@ type ClassicBadTags struct {
 }
 
 type ClassicUnique struct {
-	ID            string
-	PublicField   int       `rainstorm:"unique"`
-	privateField  string    `rainstorm:"unique"`
+	ID          string
+	PublicField int `rainstorm:"unique"`
+	//lint:ignore U1000 Private tagged fields verify reflection visibility rules.
+	privateField string `rainstorm:"unique"`
+	//lint:ignore U1000 Private tagged fields verify reflection visibility rules.
 	privateField2 string    `rainstorm:"unique"`
 	Date          time.Time `rainstorm:"unique"`
 	InlineStruct  struct {
@@ -42,8 +46,9 @@ type ClassicUnique struct {
 }
 
 type ClassicIndex struct {
-	ID           string
-	PublicField  int       `rainstorm:"index"`
+	ID          string
+	PublicField int `rainstorm:"index"`
+	//lint:ignore U1000 Private tagged fields verify reflection visibility rules.
 	privateField string    `rainstorm:"index"`
 	Date         time.Time `rainstorm:"index"`
 	InlineStruct struct {
@@ -62,11 +67,12 @@ type ClassicInline struct {
 }
 
 type User struct {
-	ID              int       `rainstorm:"id,increment"`
-	Name            string    `rainstorm:"index"`
-	Age             int       `rainstorm:"index,increment"`
-	DateOfBirth     time.Time `rainstorm:"index"`
-	Group           string
+	ID          int       `rainstorm:"id,increment"`
+	Name        string    `rainstorm:"index"`
+	Age         int       `rainstorm:"index,increment"`
+	DateOfBirth time.Time `rainstorm:"index"`
+	Group       string
+	//lint:ignore U1000 Private fields are deliberate reflection fixtures.
 	unexportedField int
 	Slug            string `rainstorm:"unique"`
 }

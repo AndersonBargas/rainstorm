@@ -9,7 +9,7 @@ import (
 
 	"github.com/AndersonBargas/rainstorm/v6/codec/gob"
 	"github.com/stretchr/testify/require"
-	bolt "go.etcd.io/bbolt"
+	bolterrors "go.etcd.io/bbolt/errors"
 )
 
 // ---------------------------------------------------------------------------
@@ -113,7 +113,7 @@ func TestReadTransaction_WriteRejected(t *testing.T) {
 	err := db.ReadTransaction(ctx, func(txNode Node) error {
 		return txNode.Save(ctx, &User{ID: 10, Name: "test", Slug: "s"})
 	})
-	require.ErrorIs(t, err, bolt.ErrTxNotWritable)
+	require.ErrorIs(t, err, bolterrors.ErrTxNotWritable)
 
 	// Verify nothing was persisted.
 	var u User

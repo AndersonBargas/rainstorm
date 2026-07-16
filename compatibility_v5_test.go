@@ -1032,7 +1032,7 @@ func TestCompatibility_RuntimeExplicitRead(t *testing.T) {
 	node := db.From("runtime", "explicit")
 
 	// Read all three records via All.
-	sliceType := reflect.SliceOf(reflect.PtrTo(runtimeType))
+	sliceType := reflect.SliceOf(reflect.PointerTo(runtimeType))
 	resultsPtr := reflect.New(sliceType)
 	err := node.All(ctx, resultsPtr.Interface())
 	require.NoError(t, err)
@@ -1070,7 +1070,7 @@ func TestCompatibility_RuntimeExplicitRead(t *testing.T) {
 	assert.Equal(t, 2, gamma.Revision)
 
 	// Group == group-shared returns exactly alpha and beta in order.
-	findSliceType := reflect.SliceOf(reflect.PtrTo(runtimeType))
+	findSliceType := reflect.SliceOf(reflect.PointerTo(runtimeType))
 	findResults := reflect.New(findSliceType)
 	err = node.Find(ctx, "Group", "group-shared", findResults.Interface())
 	require.NoError(t, err)
@@ -1142,7 +1142,7 @@ func TestCompatibility_RuntimeExplicitV6Mutation(t *testing.T) {
 	assert.Equal(t, int64(99), updatedVal.FieldByName("Revision").Int())
 
 	// Prove old Group index loses it.
-	sliceType := reflect.SliceOf(reflect.PtrTo(runtimeType))
+	sliceType := reflect.SliceOf(reflect.PointerTo(runtimeType))
 	oldGroupResults := reflect.New(sliceType)
 	err = node.Find(ctx, "Group", "group-shared", oldGroupResults.Interface())
 	require.NoError(t, err)
@@ -1228,7 +1228,7 @@ func TestCompatibility_RuntimeRootDataRead(t *testing.T) {
 	node := db.From("runtime", "root-data")
 
 	// Read all records via All. The node root itself is the data bucket.
-	sliceType := reflect.SliceOf(reflect.PtrTo(runtimeType))
+	sliceType := reflect.SliceOf(reflect.PointerTo(runtimeType))
 	resultsPtr := reflect.New(sliceType)
 	err := node.All(ctx, resultsPtr.Interface())
 	require.NoError(t, err)
@@ -1258,7 +1258,7 @@ func TestCompatibility_RuntimeRootDataRead(t *testing.T) {
 	assert.Equal(t, 4, beta.Revision)
 
 	// Group index works: root-group returns both in order.
-	findSliceType := reflect.SliceOf(reflect.PtrTo(runtimeType))
+	findSliceType := reflect.SliceOf(reflect.PointerTo(runtimeType))
 	findResults := reflect.New(findSliceType)
 	err = node.Find(ctx, "Group", "root-group", findResults.Interface())
 	require.NoError(t, err)
@@ -1338,7 +1338,7 @@ func TestCompatibility_RuntimeRootDataV6Mutation(t *testing.T) {
 		assert.Equal(t, int64(42), updatedVal.FieldByName("Revision").Int())
 
 		// Old Group index no longer contains alpha.
-		sliceType := reflect.SliceOf(reflect.PtrTo(runtimeType))
+		sliceType := reflect.SliceOf(reflect.PointerTo(runtimeType))
 		oldResults := reflect.New(sliceType)
 		err = node.Find(ctx, "Group", "root-group", oldResults.Interface())
 		require.NoError(t, err)
@@ -1427,7 +1427,7 @@ func TestCompatibility_RuntimeRootDataV6Mutation(t *testing.T) {
 	assert.Equal(t, "Replacement Beta", reflect.ValueOf(reusedPtr).Elem().FieldByName("Label").String())
 
 	// Replacement index works.
-	sliceType := reflect.SliceOf(reflect.PtrTo(runtimeType))
+	sliceType := reflect.SliceOf(reflect.PointerTo(runtimeType))
 	repResults := reflect.New(sliceType)
 	err = node2.Find(ctx, "Group", "root-group-replacement", repResults.Interface())
 	require.NoError(t, err)

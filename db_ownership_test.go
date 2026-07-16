@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	bolt "go.etcd.io/bbolt"
+	bolterrors "go.etcd.io/bbolt/errors"
 )
 
 // TestOwnedLifecycle verifies owned database lifecycle.
@@ -33,7 +34,7 @@ func TestOwnedLifecycle(t *testing.T) {
 	// 3. A second native operation after owned Close returns a bbolt closed-database error.
 	// bbolt returns ErrDatabaseNotOpen for operations on a closed DB.
 	viewErr := db.bolt.View(func(tx *bolt.Tx) error { return nil })
-	require.ErrorIs(t, viewErr, bolt.ErrDatabaseNotOpen,
+	require.ErrorIs(t, viewErr, bolterrors.ErrDatabaseNotOpen,
 		"native View on closed owned DB must report bbolt's closed-database sentinel")
 }
 

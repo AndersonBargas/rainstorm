@@ -28,10 +28,10 @@ func (idx *IDIndex) Add(ctx context.Context, value []byte, targetID []byte) erro
 	if err := checkContext(ctx); err != nil {
 		return wrapError("index add", err)
 	}
-	if value == nil || len(value) == 0 {
+	if len(value) == 0 {
 		return wrapError("index add", ErrNilParam)
 	}
-	if targetID == nil || len(targetID) == 0 {
+	if len(targetID) == 0 {
 		return wrapError("index add", ErrNilParam)
 	}
 

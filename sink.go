@@ -420,32 +420,6 @@ func newListSink(node Node, to interface{}) (*listSink, error) {
 	}, nil
 }
 
-// newListSinkWithBucket creates a listSink with an explicit bucket name,
-// bypassing type-based name resolution. This is useful for dynamic types.
-func newListSinkWithBucket(node Node, to interface{}, bucketName string) (*listSink, error) {
-	ref := reflect.ValueOf(to)
-
-	if ref.Kind() != reflect.Ptr || reflect.Indirect(ref).Kind() != reflect.Slice {
-		return nil, ErrSlicePtrNeeded
-	}
-
-	sliceType := reflect.Indirect(ref).Type()
-	elemType := sliceType.Elem()
-
-	if elemType.Kind() == reflect.Ptr {
-		elemType = elemType.Elem()
-	}
-
-	return &listSink{
-		node:     node,
-		ref:      ref,
-		isPtr:    sliceType.Elem().Kind() == reflect.Ptr,
-		elemType: elemType,
-		name:     bucketName,
-		results:  reflect.MakeSlice(reflect.Indirect(ref).Type(), 0, 0),
-	}, nil
-}
-
 type listSink struct {
 	node     Node
 	ref      reflect.Value

@@ -49,10 +49,10 @@ func (idx *ListIndex) Add(ctx context.Context, newValue []byte, targetID []byte)
 	if err := checkContext(ctx); err != nil {
 		return wrapError("index add", err)
 	}
-	if newValue == nil || len(newValue) == 0 {
+	if len(newValue) == 0 {
 		return wrapError("index add", ErrNilParam)
 	}
-	if targetID == nil || len(targetID) == 0 {
+	if len(targetID) == 0 {
 		return wrapError("index add", ErrNilParam)
 	}
 
@@ -199,7 +199,8 @@ func (idx *ListIndex) Get(ctx context.Context, value []byte) ([]byte, error) {
 	c := idx.IndexBucket.Cursor()
 	prefix := generatePrefix(value)
 
-	for k, id := c.Seek(prefix); bytes.HasPrefix(k, prefix); k, id = c.Next() {
+	k, id := c.Seek(prefix)
+	if bytes.HasPrefix(k, prefix) {
 		if err := checkContext(ctx); err != nil {
 			return nil, wrapError("index get", err)
 		}

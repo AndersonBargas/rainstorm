@@ -46,6 +46,7 @@ func TestFrom_SiblingPathsAreIndependent(t *testing.T) {
 	usersPath := users.Bucket()
 	usersPath[0] = "CORRUPTED"
 	usersPath = append(usersPath, "EXTRA")
+	require.Equal(t, []string{"CORRUPTED", "users", "EXTRA"}, usersPath)
 
 	require.Equal(t, []string{"tenant", "users"}, users.Bucket())
 	require.Equal(t, []string{"tenant", "orders"}, orders.Bucket())
@@ -66,6 +67,7 @@ func TestBucket_ReturnsDefensiveCopy(t *testing.T) {
 
 	// Append extra.
 	path1 = append(path1, "EXTRA")
+	require.Equal(t, []string{"a", "MUTATED", "c", "EXTRA"}, path1)
 
 	// Get path again — must be the original.
 	path2 := db.Bucket()

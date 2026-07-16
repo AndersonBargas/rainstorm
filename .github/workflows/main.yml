@@ -42,6 +42,24 @@ jobs:
       - name: Build
         run: go build ./...
 
+  # -- staticcheck (stable): pinned staticcheck 2026.1 ---------------------------
+  staticcheck:
+    name: Staticcheck (stable)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache-dependency-path: go.sum
+      - name: Install staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@2026.1
+      - name: Staticcheck version
+        run: staticcheck -version
+      - name: Run staticcheck
+        run: staticcheck ./...
+
   # -- test (matrix: 1.24.x minimum + stable current) ---------------------------
   test:
     name: Test (${{ matrix.go }})
@@ -74,7 +92,7 @@ jobs:
       - name: Race detector
         run: go test -race -count=1 -timeout 300s ./...
 
-  # -- compatibility (stable): nested roundtrip + benchmark ---------------------
+  # -- compatibility (stable): nested module checks + roundtrip + benchmark ------
   compatibility:
     name: Compatibility (stable)
     runs-on: ubuntu-latest
@@ -86,7 +104,27 @@ jobs:
           go-version: stable
           cache-dependency-path: |
             go.sum
+            testdata/compatibility/v5.3.0/generator/go.sum
             testdata/compatibility/roundtrip/go.sum
+            testdata/compatibility/benchmark/go.sum
+      - name: Nested module tidy
+        run: |
+          go -C testdata/compatibility/v5.3.0/generator mod tidy
+          go -C testdata/compatibility/roundtrip mod tidy
+          go -C testdata/compatibility/benchmark mod tidy
+      - name: Nested module verify
+        run: |
+          go -C testdata/compatibility/v5.3.0/generator mod verify
+          go -C testdata/compatibility/roundtrip mod verify
+          go -C testdata/compatibility/benchmark mod verify
+      - name: Nested module diff check
+        run: |
+          git diff --exit-code -- \
+            testdata/compatibility/v5.3.0/generator/go.mod \
+            testdata/compatibility/v5.3.0/generator/go.sum \
+            testdata/compatibility/roundtrip/go.mod \
+            testdata/compatibility/roundtrip/go.sum \
+            testdata/compatibility/benchmark/go.mod \
             testdata/compatibility/benchmark/go.sum
       - name: Roundtrip normal
         run: go -C testdata/compatibility/roundtrip test -count=1 -timeout 180s ./...
@@ -97,7 +135,7 @@ jobs:
       - name: Benchmark race
         run: go -C testdata/compatibility/benchmark test -race -count=1 ./...
 
-  # -- coverage (stable): profile + text summary + artifact upload ---------------
+  # -- coverage (stable): profile + text summary + threshold + artifact upload ----
   coverage:
     name: Coverage (stable)
     runs-on: ubuntu-latest
@@ -114,6 +152,31 @@ jobs:
       - name: Coverage summary
         run: |
           go tool cover -func=coverage.out | tee coverage.txt
+      - name: Coverage threshold
+        run: |
+          awk '
+            BEGIN { found = 0 }
+            /^total:/ {
+              found++
+              value = $NF
+              sub(/%$/, "", value)
+              if (value !~ /^[0-9]+([.][0-9]+)?$/) {
+                print "ERROR: malformed coverage total: " $NF > "/dev/stderr"
+                exit 1
+              }
+              if ((value + 0) < 80.0) {
+                printf "FAIL: coverage %s%% is below minimum 80.0%%\n", value > "/dev/stderr"
+                exit 1
+              }
+              printf "Coverage threshold satisfied: %s%% >= 80.0%%\n", value
+            }
+            END {
+              if (found != 1) {
+                print "ERROR: expected exactly one total line in coverage.txt" > "/dev/stderr"
+                exit 1
+              }
+            }
+          ' coverage.txt
       - uses: actions/upload-artifact@v7
         with:
           name: coverage-stable

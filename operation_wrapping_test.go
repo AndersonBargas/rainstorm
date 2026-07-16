@@ -12,6 +12,7 @@ import (
 	"github.com/AndersonBargas/rainstorm/v6/index"
 	"github.com/stretchr/testify/require"
 	bolt "go.etcd.io/bbolt"
+	bolterrors "go.etcd.io/bbolt/errors"
 )
 
 // ============================================================================
@@ -828,6 +829,6 @@ func TestWrap_BboltErrorClassification(t *testing.T) {
 
 	ctx := context.Background()
 	err = db.Save(ctx, &User{ID: 1, Name: "x", Slug: "x"})
-	require.ErrorIs(t, err, bolt.ErrDatabaseNotOpen)
+	require.ErrorIs(t, err, bolterrors.ErrDatabaseNotOpen)
 	require.True(t, strings.HasPrefix(err.Error(), "rainstorm save:"))
 }

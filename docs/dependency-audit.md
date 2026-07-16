@@ -386,3 +386,222 @@ cache-dependency-path: |
 - `.github/workflows/main.yml` -- replaced with new CI pipeline
 - `docs/dependency-audit.md` -- added Go version policy and R6.6B CI section
 - `codec/protobuf/simple_user.pb.go` -- gofmt-only generated-file cleanup required by the formatting job
+
+---
+
+## 14. R6.6C -- Staticcheck, Coverage Threshold, and Nested Module Consistency
+
+**Date:** 2026-07-15
+**Phase:** R6.6C -- Quality gates completion
+
+### Staticcheck
+
+**Version:** `2026.1` (v0.7.0)
+
+**Evidence:** GitHub Releases API for `dominikh/go-tools`:
+- Tag: `2026.1`
+- Release name: "Staticcheck 2026.1 (v0.7.0)"
+- Published: 2026-02-13
+- Release notes confirm improved Go 1.25 and Go 1.26 support, including `new(expr)` added in Go 1.26.
+- URL: https://github.com/dominikh/go-tools/releases/tag/2026.1
+
+**Go compatibility:** Supports Go 1.24–1.26. The CI stable Go channel and Go 1.24.x are well within range.
+
+**Install command:**
+```sh
+go install honnef.co/go/tools/cmd/staticcheck@2026.1
+```
+
+**CI job:** Dedicated `staticcheck` job on stable Go, separate from quality for attributable diagnostics.
+
+### Staticcheck diagnostics (local run, 2026-07-15)
+
+**Total:** 37 initial diagnostics → 37 resolved. The final pinned command exits successfully with no diagnostics.
+
+#### Initial fixes
+
+| File | Diagnostic | Category | Fix |
+|------|-----------|----------|-----|
+| `extract.go:246` | SA5011: possible nil pointer dereference | Correctness | Reordered nil check before `v.Kind()` dereference |
+| `storm_test.go:35` | SA5001: check error before defer Close() | Test robustness | Moved `require.NoError` before `defer db.Close()` |
+| `index/id.go:31,34` | S1009: redundant nil check on slice | Code quality | Removed `value == nil \|\|` / `targetID == nil \|\|` (2 fixes) |
+| `index/list.go:52,55` | S1009: redundant nil check on slice | Code quality | Removed `newValue == nil \|\|` / `targetID == nil \|\|` (2 fixes) |
+| `index/unique.go:45,48` | S1009: redundant nil check on slice | Code quality | Removed `value == nil \|\|` / `targetID == nil \|\|` (2 fixes) |
+| `q/regexp.go:49` | ST1005: error string capitalization | Code quality | Lowercased `"Only"` → `"only"` |
+| `compatibility_v5_test.go` (7 lines) | SA1019: `reflect.PtrTo` deprecated | Deprecation | Replaced with `reflect.PointerTo` |
+| `dynamic_struct_test.go` (4 lines) | SA1019: `reflect.PtrTo` deprecated | Deprecation | Replaced with `reflect.PointerTo` |
+| `db_ownership_test.go` | SA1019: `bolt.ErrDatabaseNotOpen` deprecated | Deprecation | Added `bolterrors` import; changed to `bolterrors.ErrDatabaseNotOpen` |
+| `error_classification_test.go` | SA1019: `bolt.ErrDatabaseNotOpen` deprecated | Deprecation | Same as above |
+| `managed_transaction_test.go` | SA1019: `bolt.ErrTxNotWritable` deprecated | Deprecation | Added `bolterrors` import; changed to `bolterrors.ErrTxNotWritable` |
+| `operation_wrapping_test.go` | SA1019: `bolt.ErrDatabaseNotOpen` deprecated | Deprecation | Same as above |
+
+**Confirmed:** `bolt.ErrDatabaseNotOpen == bolterrors.ErrDatabaseNotOpen` (same pointer) and `bolt.ErrTxNotWritable == bolterrors.ErrTxNotWritable` (same pointer) at runtime. The change is purely cosmetic — avoids deprecated symbol references.
+
+#### Remaining diagnostics resolved
+
+- Removed genuinely dead test artifacts, an unused protobuf sentinel, an unused private helper, and unused struct state.
+- Replaced the single-iteration cursor loop with an equivalent `Seek` plus conditional.
+- Added assertions that make defensive-copy mutations and nil-on-error results observable.
+- Added narrow `//lint:ignore U1000` directives only to private fields intentionally present in reflection fixtures; each directive explains the fixture contract.
+
+No lint category is disabled globally. The production API, transaction semantics, error classification, on-disk format, and codec bytes are unchanged.
+
+### Coverage threshold
+
+**Baseline before R6.6C:** 80.1% of statements
+
+**Enforced floor:** 80.0%
+
+**Rationale:**
+- Below the measured baseline (80.1%), so current code passes.
+- Prevents material accidental regression.
+- Leaves a narrow margin for tooling/reporting differences.
+- Does not pretend the project has a higher baseline than measured.
+
+**Enforcement:**
+- Uses a single `awk` program and explicitly selects the `^total:` line.
+- Requires exactly one total line, strips the trailing `%`, and validates the numeric format.
+- Fails for missing, duplicate, malformed, or below-threshold totals.
+- Requires no package beyond the standard Ubuntu runner tools.
+- No per-package thresholds are enforced in this phase.
+
+**Threshold step placement:** After coverage summary generation, before artifact upload. If the threshold fails, the artifact is not uploaded.
+
+**Local observed total after R6.6C (2026-07-15):** 80.4%
+
+### Negative parser tests
+
+| Input | Result |
+|-------|--------|
+| `80.1` | PASS |
+| `80.0` | PASS |
+| `79.9` | FAIL as expected |
+| Missing, duplicate, or malformed total | FAIL as expected |
+
+### Nested module consistency
+
+**Modules checked:**
+1. `testdata/compatibility/v5.3.0/generator`
+2. `testdata/compatibility/roundtrip`
+3. `testdata/compatibility/benchmark`
+
+**Policy:**
+- Each nested module runs `go mod tidy` and `go mod verify` in CI.
+- After all tidy commands, a single `git diff --exit-code` checks all nested `go.mod`/`go.sum`.
+- The fixture generator is **not** executed; only its module files are verified.
+- The generator's dependencies remain pinned (R6.6A policy).
+
+**Local results (2026-07-15):**
+
+| Module | Tidy | Verify | Diff |
+|--------|------|--------|------|
+| Generator | PASS | PASS | Clean |
+| Roundtrip | PASS | PASS | Clean |
+| Benchmark | PASS | PASS | Intended lockfile update pending in the R6.6C working tree |
+
+**Benchmark go.sum note:** Running `go mod tidy` on the benchmark module updated its `go.sum` to reflect testify v1.11.1 (an indirect dependency). Until R6.6C is committed, that lockfile correctly differs from current HEAD. Once included in the commit, CI's post-tidy diff check is expected to be clean. This is a checksum synchronization, not a `go.mod` dependency version change.
+
+### Cache updates
+
+Compatibility job `cache-dependency-path` now includes:
+```yaml
+cache-dependency-path: |
+  go.sum
+  testdata/compatibility/v5.3.0/generator/go.sum
+  testdata/compatibility/roundtrip/go.sum
+  testdata/compatibility/benchmark/go.sum
+```
+
+### CI job inventory (R6.6C final)
+
+| Job | Go version | Timeout | Checks |
+|-----|-----------|---------|--------|
+| quality | 1.24.x | 10 min | gofmt, tidy diff, mod verify, vet, build |
+| **staticcheck** | **stable** | **10 min** | **pinned staticcheck 2026.1** |
+| test | 1.24.x + stable | 10 min | `go test -count=1 -timeout 180s ./...` |
+| race | stable | 15 min | `go test -race -count=1 -timeout 300s ./...` |
+| compatibility | stable | 15 min | nested mod tidy/verify/diff + roundtrip normal/race + benchmark normal/race |
+| coverage | stable | 10 min | profile, text summary, **threshold (80.0%)**, artifact upload |
+
+### Workflow audit checklist (R6.6C)
+
+| Requirement | Status |
+|-------------|--------|
+| No `@latest` | Yes — pinned `@2026.1` |
+| No third-party staticcheck action | Yes — `go install honnef.co/go/tools/cmd/staticcheck` |
+| Threshold exactly 80.0 | Yes |
+| No `\|\| true` | Yes |
+| No `paths-ignore` | Yes |
+| No dependency automation | Yes |
+| No fixture generator execution | Yes — only mod tidy/verify |
+| No full `-bench` command | Yes |
+| Generator/roundtrip/benchmark module checks present | Yes |
+| checkout v7 | Yes |
+| setup-go v6 | Yes |
+| upload-artifact v7 | Yes |
+| Coverage artifact upload preserved | Yes, after successful coverage and threshold steps |
+| Staticcheck separate from quality | Yes — dedicated job |
+
+### Local validation (2026-07-15)
+
+| Check | Result |
+|-------|--------|
+| `gofmt -l .` | PASS |
+| `go mod tidy` | PASS |
+| `git diff --exit-code -- go.mod go.sum` | PASS |
+| `go mod verify` | PASS |
+| `go vet ./...` | PASS |
+| `go build ./...` | PASS |
+| `go test -count=1 -timeout 180s ./...` | PASS (11 packages) |
+| `go test -race -count=1 -timeout 300s ./...` | PASS (11 packages) |
+| `go run honnef.co/go/tools/cmd/staticcheck@2026.1 ./...` | PASS (zero diagnostics) |
+| Coverage profile | Generated |
+| Coverage summary | total: 80.4% |
+| Coverage threshold check (80.4 >= 80.0) | PASS |
+| Generator mod tidy | PASS |
+| Generator mod verify | PASS |
+| Roundtrip mod tidy | PASS |
+| Roundtrip mod verify | PASS |
+| Roundtrip normal test | PASS |
+| Roundtrip race test | PASS |
+| Benchmark mod tidy | PASS |
+| Benchmark mod verify | PASS |
+| Benchmark normal test | PASS (no tests) |
+| Benchmark race test | PASS (no tests) |
+| Nested lockfile state | Benchmark go.sum has the intended uncommitted checksum sync; CI diff becomes clean once committed |
+| YAML syntax (Ruby/Psych) | VALID |
+| `actionlint` | Unavailable; manual GitHub expression review confirms no issues |
+| `git diff --check` | PASS |
+| Negative parser tests (80.1, 80.0, 79.9, malformed) | All pass |
+
+### R6.6C files changed
+
+- `.github/workflows/main.yml` — added staticcheck job, coverage threshold step, nested module tidy/verify/diff steps, updated compatibility cache paths
+- `docs/dependency-audit.md` — added R6.6C section (this section)
+- `extract.go` — fixed nil pointer dereference (SA5011)
+- `storm_test.go` — fixed error check order (SA5001) and removed an unused constant
+- `bench_test.go`, `bucket_path_test.go`, `operation_wrapping_r6c2b_test.go`, `scan_cancellation_test.go` — removed dead artifacts or added meaningful state assertions
+- `extract_test.go`, `structs_test.go` — documented reflection-only private fixture fields with narrow lint directives; added nil coverage for `isInteger`
+- `codec/protobuf/protobuf.go`, `q/tree.go`, `sink.go` — removed unused private declarations
+- `q/regexp.go` — normalized an error message to Go's lowercase error grammar; this is an observable text-only cleanup
+- `index/id.go` — removed redundant nil checks (S1009)
+- `index/list.go` — removed redundant nil checks (S1009)
+- `index/unique.go` — removed redundant nil checks (S1009)
+- `q/regexp.go` — fixed error string capitalization (ST1005)
+- `compatibility_v5_test.go` — `reflect.PtrTo` → `reflect.PointerTo` (SA1019)
+- `dynamic_struct_test.go` — `reflect.PtrTo` → `reflect.PointerTo` (SA1019)
+- `db_ownership_test.go` — `bolt.ErrDatabaseNotOpen` → `bolterrors.ErrDatabaseNotOpen` (SA1019)
+- `error_classification_test.go` — same (SA1019)
+- `managed_transaction_test.go` — `bolt.ErrTxNotWritable` → `bolterrors.ErrTxNotWritable` (SA1019)
+- `operation_wrapping_test.go` — `bolt.ErrDatabaseNotOpen` → `bolterrors.ErrDatabaseNotOpen` (SA1019)
+- `testdata/compatibility/benchmark/go.sum` — testify v1.11.1 hash sync (not a version change)
+
+### Confirmation
+
+- **No public API, persistence format, transaction, codec-byte, or fixture behavior changes.** The regexp error grammar is normalized to lowercase, and tests now assert previously implicit state.
+- **Main go.mod/go.sum unchanged.**
+- **Nested go.mod files unchanged** (only benchmark go.sum hash sync).
+- **No dependency version changes** (testify was already v1.11.1).
+- **No dependency automation added** (R6.6D).
+- **No commit or push performed.**
+- **Working tree left uncommitted for review.**

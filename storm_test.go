@@ -18,7 +18,6 @@ import (
 )
 
 const maxInt = 1<<(bits.UintSize-1) - 1
-const maxUint = 1<<bits.UintSize - 1
 
 func TestNewStorm(t *testing.T) {
 	db, err := Open(context.Background(), "")
@@ -32,11 +31,10 @@ func TestNewStorm(t *testing.T) {
 
 	file := filepath.Join(dir, "rainstorm.db")
 	db, err = Open(context.Background(), file)
+	require.NoError(t, err)
 	defer db.Close()
 
 	require.Implements(t, (*Node)(nil), db)
-
-	require.NoError(t, err)
 	require.NotNil(t, db.NativeDB())
 	require.Equal(t, defaultCodec, db.Codec())
 

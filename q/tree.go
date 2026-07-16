@@ -107,7 +107,6 @@ func (c *and) MatchValue(v *reflect.Value) (bool, error) {
 }
 
 type strictEq struct {
-	field string
 	value interface{}
 }
 

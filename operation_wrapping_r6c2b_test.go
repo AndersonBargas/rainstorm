@@ -1298,16 +1298,17 @@ func TestWrap_SensitiveDataExclusion(t *testing.T) {
 		// Prefix scan with secret prefix
 		nodes, err := node.PrefixScan(canceledCtx(), secretPrefix)
 		require.Error(t, err)
+		require.Nil(t, nodes)
 		msg := err.Error()
 		require.NotContains(t, msg, secretPrefix)
 
 		// Range scan with secret bounds
 		nodes, err = node.RangeScan(canceledCtx(), secretMin, secretMax)
 		require.Error(t, err)
+		require.Nil(t, nodes)
 		msg = err.Error()
 		require.NotContains(t, msg, secretMin)
 		require.NotContains(t, msg, secretMax)
-		_ = nodes
 	})
 
 	t.Run("IndexValueAndTargetID_NotLeaked", func(t *testing.T) {

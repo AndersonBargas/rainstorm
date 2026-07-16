@@ -400,6 +400,7 @@ func TestPrefixScan_MutatingBucketDoesNotAffectResults(t *testing.T) {
 		b := nodes[i].Bucket()
 		b[0] = "MUTATED"
 		b = append(b, "EXTRA")
+		require.Len(t, b, 3)
 	}
 
 	// Now re-read all nodes' buckets — must be unchanged.

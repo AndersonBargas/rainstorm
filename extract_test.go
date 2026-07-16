@@ -78,8 +78,9 @@ func TestExtractInlineWithIndex(t *testing.T) {
 
 func TestExtractMultipleTags(t *testing.T) {
 	type User struct {
-		ID              uint64 `rainstorm:"id,increment"`
-		Age             uint16 `rainstorm:"index,increment"`
+		ID  uint64 `rainstorm:"id,increment"`
+		Age uint16 `rainstorm:"index,increment"`
+		//lint:ignore U1000 This private tagged field verifies that extraction ignores inaccessible fields.
 		unexportedField int32  `rainstorm:"index,increment"`
 		X               uint32 `rainstorm:"unique,increment=100"`
 		Y               int8   `rainstorm:"index,increment=-100"`
@@ -137,4 +138,8 @@ func TestExtractMultipleTags(t *testing.T) {
 	r = reflect.ValueOf(&b)
 	_, err = extract(&r)
 	require.Error(t, err)
+}
+
+func TestIsIntegerNil(t *testing.T) {
+	require.False(t, isInteger(nil))
 }

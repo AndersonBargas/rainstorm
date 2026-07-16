@@ -153,7 +153,7 @@ func TestDynamicStructAllViaFrom(t *testing.T) {
 	}
 
 	// All
-	sliceType := reflect.SliceOf(reflect.PtrTo(dynType))
+	sliceType := reflect.SliceOf(reflect.PointerTo(dynType))
 	resultsVal := reflect.New(sliceType)
 
 	err := node.All(ctx, resultsVal.Interface())
@@ -206,7 +206,7 @@ func TestDynamicStructFindByIndexViaFrom(t *testing.T) {
 	}
 
 	// Find by indexed field (Score = 100)
-	sliceType := reflect.SliceOf(reflect.PtrTo(dynType))
+	sliceType := reflect.SliceOf(reflect.PointerTo(dynType))
 	resultsVal := reflect.New(sliceType)
 
 	err := node.Find(ctx, "Score", 100, resultsVal.Interface())
@@ -254,7 +254,7 @@ func TestDynamicStructBucketIsolation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Read from bucket A
-	sliceType := reflect.SliceOf(reflect.PtrTo(dynType))
+	sliceType := reflect.SliceOf(reflect.PointerTo(dynType))
 	resultsA := reflect.New(sliceType)
 	err = bucketA.All(ctx, resultsA.Interface())
 	require.NoError(t, err)
@@ -326,7 +326,7 @@ func TestDynamicStructSelectCombined(t *testing.T) {
 	require.Equal(t, 5, count)
 
 	// All
-	sliceType := reflect.SliceOf(reflect.PtrTo(dynType))
+	sliceType := reflect.SliceOf(reflect.PointerTo(dynType))
 	results := reflect.New(sliceType)
 	err = node.All(ctx, results.Interface())
 	require.NoError(t, err)
