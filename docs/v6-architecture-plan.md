@@ -603,14 +603,14 @@ Acceptance: all required checks run in CI and locally.
 
 Acceptance: a v5 user can migrate using documentation without reading implementation code.
 
-### R6.8 — Terure integration
+### R6.8 — Consumer integration validation
 
-- update Terure to `/v6`;
+- migrate a real application to `/v6`;
 - make persistence adapters pass application contexts to Rainstorm;
-- run Terure's complete test and race suites;
-- resume Terure Phase 9.3 with context propagated to the storage boundary.
+- run the consumer's complete test and race suites;
+- validate context propagation to the storage boundary.
 
-Acceptance: request cancellation reaches Rainstorm; transactional behavior remains correct; no service uses hidden background contexts.
+Acceptance: request cancellation reaches Rainstorm; transactional behavior remains correct; no request-driven service uses hidden background contexts.
 
 ## 13. Delegation rules
 

@@ -1,11 +1,11 @@
 # Rainstorm v6.0.0 Release Notes
 
-> **Status:** Release-candidate preparation — not yet validated, tagged, or published.
-> **Preparation/audit date:** 2026-07-16.
+> **Status:** Final release preparation. `v6.0.0-rc.1` is published and validated; the final `v6.0.0` tag and GitHub release are pending merge and CI.
+> **Release preparation date:** 2026-07-17.
 
 ## 1. Release status
 
-Rainstorm v6.0.0 is in release-candidate preparation. This document describes the completed v6 work, breaking changes, evidence, and known limitations. Final clean-checkout validation remains for R6.7D; no Git tag or release has been created.
+Rainstorm `v6.0.0-rc.1` was published as a GitHub prerelease and passed its GitHub Actions workflow. A clean-checkout validation has since completed successfully. This document describes the completed v6 work, breaking changes, evidence, and known limitations. The final `v6.0.0` tag and GitHub release have not yet been created; they remain gated on the final preparation PR and CI.
 
 ## 2. Executive summary
 
@@ -387,8 +387,7 @@ The CI workflow (`.github/workflows/main.yml`) enforces:
 | Compatibility | Nested module tidy/verify, roundtrip tests, and benchmark-module normal/race compile checks (no `-bench` execution) |
 | Coverage | ≥80.0% with `covermode=atomic` |
 
-The workflow is configured; local equivalents pass. GitHub-hosted CI has not
-been externally confirmed for this exact commit.
+The workflow is configured and passed on the published `v6.0.0-rc.1` release-candidate commit. Local equivalents also pass. The final release-preparation commit must pass the same GitHub-hosted workflow before tagging `v6.0.0`.
 
 ## 19. Upgrade instructions
 
@@ -466,7 +465,9 @@ non-normative.
 - [x] Changelog (`CHANGELOG.md`)
 - [x] Release notes (this document)
 - [x] Public API audit and GoDoc review
-- [ ] Final release-candidate validation (R6.7D)
+- [x] Final release-candidate validation (R6.7D)
+- [x] Published prerelease `v6.0.0-rc.1`
+- [ ] Final release-preparation PR and CI
 - [ ] Git tag `v6.0.0`
 - [ ] GitHub release
 
