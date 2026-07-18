@@ -2,7 +2,7 @@
 
 Status: exploratory, non-normative
 
-This document preserves architectural ideas for possible work after Rainstorm v6 is stable and Terure is operating reliably. It is not a roadmap, release commitment, or justification for expanding the v6 scope.
+This document preserves architectural ideas for possible work after Rainstorm v6 is stable in real applications. It is not a roadmap, release commitment, or justification for expanding the v6 scope.
 
 The decision to pursue any item requires production evidence, benchmarks, compatibility analysis, and a separate normative design.
 
@@ -46,7 +46,7 @@ Potential benefits:
 - less reflection in the storage engine;
 - a clearer boundary between mapping and persistence;
 - easier testing of record/index behavior;
-- a better fit for platforms such as Terure.
+- a better fit for applications with runtime-defined schemas.
 
 This does not imply abandoning typed struct APIs. They could remain a primary adapter.
 
@@ -251,7 +251,7 @@ A permanent bbolt fork is a last resort because it transfers responsibility for 
 
 ## 11. Evaluation process
 
-After Rainstorm v6 and Terure are stable:
+After Rainstorm v6 is stable in production use:
 
 1. collect production traces and benchmarks;
 2. identify concrete bottlenecks or maintenance hazards;

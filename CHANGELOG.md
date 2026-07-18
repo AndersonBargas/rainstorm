@@ -1,6 +1,6 @@
 # Changelog
 
-## [6.0.0] — Unreleased (release-candidate preparation)
+## [6.0.0] — 2026-07-17
 
 ### Added
 
