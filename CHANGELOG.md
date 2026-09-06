@@ -1,5 +1,21 @@
 # Changelog
 
+## [6.1.0] — 2026-09-05
+
+### Added
+
+- **Transaction-bound facade (`Attach`)**: `DB.Attach(tx *bolt.Tx) (Tx, error)` binds
+  Rainstorm record/index operations to an existing, caller-owned bbolt transaction. The
+  returned `Tx` exposes the full `Node` surface — descendants from `From`, `WithCodec`,
+  `PrefixScan`, and `RangeScan` remain transaction-bound — and every operation executes
+  inside the supplied transaction. Rainstorm never commits, rolls back, closes, or
+  replaces the transaction, and it never opens a managed transaction for a bound `Tx`.
+  Uncommitted writes are visible to reads through the same `Tx` and invisible to other
+  transactions until the caller commits. A bound `Tx` is valid only for the lifetime of
+  its transaction.
+- **`ErrTxFromDifferentDB`**: New sentinel returned by `Attach` when the transaction
+  belongs to a different database.
+
 ## [6.0.0] — 2026-07-17
 
 ### Added
