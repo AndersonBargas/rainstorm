@@ -1,5 +1,13 @@
 # Changelog
 
+## [6.1.1] — 2026-09-06
+
+### Dependencies
+
+- **`github.com/stretchr/testify` 1.11.1 → 1.12.1**: test-only dependency bump
+  (Dependabot go-deps group). The nested compatibility fixtures under
+  `testdata/compatibility` were kept in sync so the tidy/diff CI gates stay green.
+
 ## [6.1.0] — 2026-09-05
 
 ### Added
