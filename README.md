@@ -22,6 +22,7 @@ Rainstorm is a simple and powerful toolkit for [BoltDB](https://github.com/etcd-
   - [Delete](#delete)
   - [Count, Init, Drop, ReIndex](#count-init-drop-reindex)
 - [Managed transactions](#managed-transactions)
+  - [Attaching to a caller-owned transaction](#attaching-to-a-caller-owned-transaction)
 - [Nodes and nested buckets](#nodes-and-nested-buckets)
 - [Key/value store](#keyvalue-store)
 - [Context and cancellation](#context-and-cancellation)
@@ -437,6 +438,60 @@ err := db.WriteTransaction(ctx, func(tx rainstorm.Node) error {
 - If the callback cancels the context and also returns an error, the callback error remains primary.
 - After a successful commit, cancellation is not retroactively applied.
 - Panics propagate unchanged after bbolt unwinds the transaction.
+
+### Attaching to a caller-owned transaction
+
+For units of work that must own their bbolt transaction (for example, to mix
+Rainstorm record/index operations with raw BoltDB bucket writes), use `Attach`
+to bind a Rainstorm facade to an existing transaction:
+
+```go
+tx, err := db.NativeDB().Begin(true)
+if err != nil {
+	return err
+}
+defer tx.Rollback()
+
+txn, err := db.Attach(tx) // rainstorm.Tx
+if err != nil {
+	return err
+}
+
+// Rainstorm record write (record + indexes) in the caller's transaction…
+if err := txn.Save(ctx, &account); err != nil {
+	return err
+}
+
+// …and a raw BoltDB write in the same transaction, committed atomically.
+audit, err := tx.CreateBucketIfNotExists([]byte("audit"))
+if err != nil {
+	return err
+}
+if err := audit.Put([]byte("event"), []byte("created")); err != nil {
+	return err
+}
+
+return tx.Commit()
+```
+
+**Semantics:**
+
+- `Tx` exposes the full `Node` surface (`Save`, `Update`, `One`, `Find`,
+  `All`, queries, scans, KV access); descendants from `From`, `WithCodec`,
+  `PrefixScan`, and `RangeScan` remain transaction-bound.
+- Rainstorm never commits, rolls back, closes, or replaces the supplied
+  transaction, and it never opens a managed transaction for a bound `Tx`.
+- Reads and writes through the bound `Tx` use the supplied transaction:
+  uncommitted writes are visible to reads through the same `Tx` and invisible
+  to every other transaction until the caller commits.
+- `Attach` accepts writable and read-only transactions. Writes through a
+  read-only transaction fail with bbolt's `ErrTxNotWritable`.
+- The transaction must belong to this database: otherwise `Attach` returns
+  `ErrTxFromDifferentDB`. A nil transaction or nil receiver returns
+  `ErrNilParam`.
+- A bound `Tx` is valid only for the lifetime of its transaction. Using it
+  after `Commit` or `Rollback` is undefined behavior, exactly like using the
+  bbolt transaction itself (writes fail with `ErrTxClosed`; reads may panic).
 
 ## Nodes and nested buckets
 

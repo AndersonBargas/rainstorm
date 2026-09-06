@@ -42,7 +42,7 @@ jobs:
       - name: Build
         run: go build ./...
 
-  # -- staticcheck (stable): pinned staticcheck 2026.1 ---------------------------
+  # -- staticcheck (stable): pinned staticcheck 2026.2.1 -------------------------
   staticcheck:
     name: Staticcheck (stable)
     runs-on: ubuntu-latest
@@ -54,7 +54,7 @@ jobs:
           go-version: stable
           cache-dependency-path: go.sum
       - name: Install staticcheck
-        run: go install honnef.co/go/tools/cmd/staticcheck@2026.1
+        run: go install honnef.co/go/tools/cmd/staticcheck@2026.2.1
       - name: Staticcheck version
         run: staticcheck -version
       - name: Run staticcheck

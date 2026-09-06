@@ -53,6 +53,10 @@ var (
 
 	// ErrDifferentCodec is returned when using a codec different than the first codec used with the bucket.
 	ErrDifferentCodec = errors.New("the selected codec is incompatible with this bucket")
+
+	// ErrTxFromDifferentDB is returned when Attach receives a bbolt transaction
+	// that belongs to a different database.
+	ErrTxFromDifferentDB = errors.New("transaction belongs to a different database")
 )
 
 // wrapError adds operation context to an error while preserving classification.
